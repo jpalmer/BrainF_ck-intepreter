@@ -42,8 +42,6 @@ jtab: resb 100000; should support programs up to 10k in length - 10k should be e
 
 segment .text
 WinMain:
-	mov  rcx, hellostr
-	call printf
 	mov rcx,  50000
 	call malloc
 	add rsp, 8
