@@ -1,8 +1,8 @@
 ;The aim of this is to create a brainfuck intepreter
 ;status - working on loop instruction
-extern _printf
-extern _malloc
-global _main
+extern printf
+extern malloc
+global WinMain
 
 ;
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
@@ -16,7 +16,7 @@ program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+
 debug db "dd",0
 intf db "%i" ,10,0
 charf db "%c",0
-
+hellostr db "hello world", 10 ,10
 incdp dw ">"
 decdp dw "<"
 incbyte dw "+"
@@ -41,23 +41,27 @@ jtab: resb 100000; should support programs up to 10k in length - 10k should be e
 ;
 
 segment .text
-_main:
-	push 50000
-	call _malloc
-	add esp, 4
-	mov [array], eax
+WinMain:
+	mov  rcx, hellostr
+	call printf
+	mov rcx,  50000
+	call malloc
+	add rsp, 8
+
+	mov [array], rax
 	jmp Zeromem
 ;Here we zero the memory - this is necersarry because memory may not necersarrily be 0 at the start
+;could possibly make this faster using SSE / mmx
 Zeromem:
-	mov ecx, 0 ;0 value
-	mov eax,40004 ;
-	add eax, [array]
-	mov ebx, 0
-	add ebx, [array]
+	mov rcx, 0 ;0 value
+	mov rax,40008 ;
+	add rax, [array]
+	mov rbx, 0
+	add rbx, [array]
 	.loop_start:
-		sub eax,4
-		mov [eax], ecx
-		cmp eax, ebx
+		sub rax,8
+		mov [rax], rcx
+		cmp rax, rbx
 		je Buildjmptab
 		jmp .loop_start
 
@@ -79,36 +83,36 @@ Buildjmptab:
 		;I use the actual stack as the stack here - why not + frees up registers
 		;ecx - position through program
 		;a,b,d are free for other things - 64bit would be really nice for the extra registers here
-	mov ecx, program
-	dec ecx ;for loop to be easier
+	mov rcx, program
+	dec rcx ;for loop to be easier
 	jmp .loop_start
-	.whilestart
-		push ecx
+	.whilestart:
+		push rcx
 		jmp .loop_start
-	.whileend
-		pop eax ;eax is v
-		push eax ; use this again later
-		sub eax, program ;eax is now count through program of original start tax
+	.whileend:
+		pop rax ;eax is v
+		push rax ; use this again later
+		sub rax, program ;eax is now count through program of original start tax
 		;now I need to calculate the position to put the address
-		lea ebx, [jtab + eax*4] 
+		lea rbx, [jtab + rax*8] 
 			;explaination - 
 				;eax = position through program 
 				;*4 - jump table is ints, program is bytes
 				;jtab - need to add in base address
-		mov [ebx], ecx; does program.[v] <- curpointer
+		mov [rbx], rcx; does program.[v] <- curpointer
 		
 		;now do program.[curpointer] <- end(v)
-		mov eax, ecx ;eax is now cur loc
-		sub eax, program; eax now dist to current instruction
-		lea ebx, [jtab + eax*4] ;need to add 4*eax as the jmp table is ints, whilst the program is chars (bytes)
+		mov rax, rcx ;eax is now cur loc
+		sub rax, program; eax now dist to current instruction
+		lea rbx, [jtab + rax*8] ;need to add 4*eax as the jmp table is ints, whilst the program is chars (bytes)
 								;ebx is now location in jump table of current instruction
 								;now we need to work out where to jump to
-		pop eax
-		mov [ebx], eax
+		pop rax
+		mov [rbx], rax
 		jmp .loop_start
-	.loop_start
-		inc ecx
-		mov al, [ecx]
+	.loop_start:
+		inc rcx
+		mov al, [rcx]
 		mov dl, [whilestart]
 		cmp dl,al
 		je .whilestart
@@ -119,131 +123,111 @@ Buildjmptab:
 		cmp dl,al
 		jne .loop_start
 		jmp initptrs ;now go to main loop
-;use this to print the memory - mainly useful as a debugging tool + me remembering how to write asm - not used currently
-printmem:
-	mov eax,-4
-	add eax, array
-	push eax
-	.loop_start
-		pop eax
-		add eax, 4
-		push eax
-		mov ebx,4000
-		add ebx,array
-		cmp ebx, eax
-		je initptrs
-		mov ecx, [eax]
-		push ecx
-		push intf
-		call _printf
-		add esp,8 ;drop stack
-		jmp .loop_start
 		
 initptrs:
-	mov eax, program
-	mov [instrpointer], eax
-	mov ebx, [array]
-	mov [datapointer], ebx
+	mov rax, program
+	mov [instrpointer], rax
+	mov rbx, [array]
+	mov [datapointer], rbx
 	jmp decode
 	
 	
 ;routines for different opcodes
 incdpC:
-	mov eax, [instrpointer]
-	inc eax
-	mov [instrpointer], eax
+	mov rax, [instrpointer]
+	inc rax
+	mov [instrpointer], rax
 	
-	mov eax, [datapointer]
-	add eax,4
-	mov [datapointer], eax
+	mov rax, [datapointer]
+	add rax,8
+	mov [datapointer], rax
 	
 	jmp decode
 decdpC:
-	mov eax, [instrpointer]
-	inc eax
-	mov [instrpointer], eax
+	mov rax, [instrpointer]
+	inc rax
+	mov [instrpointer], rax
 	
-	mov eax, [datapointer]
-	sub eax,4
-	mov [datapointer], eax
+	mov rax, [datapointer]
+	sub rax,8
+	mov [datapointer], rax
 	
 	jmp decode
 decbyteC:
-	mov eax, [datapointer]
-	mov ebx, [eax]
-	dec ebx
-	mov [eax], ebx
+	mov rax, [datapointer]
+	mov rbx, [rax]
+	dec rbx
+	mov [rax], rbx
 	
-	mov eax, [instrpointer]
-	inc eax
-	mov [instrpointer], eax
+	mov rax, [instrpointer]
+	inc rax
+	mov [instrpointer], rax
 	
 	jmp decode
 incbyteC:
-	mov eax, [datapointer]
-	mov ebx, [eax]
-	inc ebx
-	mov [eax], ebx
+	mov rax, [datapointer]
+	mov rbx, [rax]
+	inc rbx
+	mov [rax], rbx
 	
-	mov eax, [instrpointer]
-	inc eax
-	mov [instrpointer], eax
+	mov rax, [instrpointer]
+	inc rax
+	mov [instrpointer], rax
 	
 	jmp decode
 outputC:
-	mov eax, [datapointer]
-	push dword [eax]
-	push charf
-	call _printf
-	add esp, 8
+	mov rax, [datapointer]
+	mov rcx, [rax]
+	mov rdx, charf
+	call printf
 	
-	mov eax, [instrpointer]
-	inc eax
-	mov [instrpointer], eax
+	mov rax, [instrpointer]
+	inc rax
+	mov [instrpointer], rax
 	
 	jmp decode
 whilestartC:
 	;check if memory.[pointer] = 0
-	mov ebx, [datapointer]
-	mov eax, [ebx]
-	cmp eax, 0
+	mov rbx, [datapointer]
+	mov rax, [rbx]
+	cmp rax, 0
 	jne .nojmp
 	;now we need to get the new value for instrpointer
-	mov eax, [instrpointer]
-	sub eax, program
-	mov ebx, [eax*4+jtab]
-	inc ebx
-	mov [instrpointer], ebx
+	mov rax, [instrpointer]
+	sub rax, program
+	mov rbx, [rax*8+jtab]
+	inc rbx
+	mov [instrpointer], rbx
 	jmp decode
-	.nojmp 
-		mov eax, [instrpointer]
-		inc eax
-		mov [instrpointer], eax
+	.nojmp :
+		mov rax, [instrpointer]
+		inc rax
+		mov [instrpointer], rax
 		jmp decode
 whileendC:
 	;check if memory.[pointer] = 0
-	mov ebx, [datapointer]
-	mov eax, [ebx]
-	cmp eax, 0
+	mov rbx, [datapointer]
+	mov rax, [rbx]
+	cmp rax, 0
 	je .nojmp
 	;now we need to get the new value for instrpointer
-	mov eax, [instrpointer]
-	sub eax, program
-	mov ebx, [eax*4+jtab]
-	inc ebx
-	mov [instrpointer], ebx
+	mov rax, [instrpointer]
+	sub rax, program
+	mov rbx, [rax*8+jtab]
+	inc rbx
+	mov [instrpointer], rbx
 	jmp decode
-	.nojmp 
-		mov eax, [instrpointer]
-		inc eax
-		mov [instrpointer], eax
+	.nojmp:
+		mov rax, [instrpointer]
+		inc rax
+		mov [instrpointer], rax
 		jmp decode
 ;Instruction decode loop
 ;could be made cleverer - but probably safe to assume that all the opcodes are in memory
 ;best thing to do could be to map all the input chars to ints 1 - 8 and use those as offsets in a jump table - but this works	
 decode:
-	mov ecx, [instrpointer]
-	mov al, [ecx]
+	mov rcx, [instrpointer]
+	mov al, [rcx]
 	mov bl, [incdp]
 	cmp al, bl
 	je incdpC
