@@ -6,7 +6,11 @@ global _main
 ;
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
 segment .data
+;loopless hello world
 ;program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
+;hello world w/ loops
+;program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
+;factorial
 program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0       ; don't forget nul terminator
 debug db "dd",0
 intf db "%i" ,10,0
@@ -77,22 +81,24 @@ Buildjmptab:
 		jmp .loop_start
 	.whileend
 		pop eax ;eax is v
+		push eax ; use this again later
 		sub eax, program ;eax is now count through program of original start tax
 		;now I need to calculate the position to put the address
 		lea ebx, [jtab + eax*4] 
 			;explaination - 
-				;edx = start of jump table, 
 				;eax = position through program 
 				;*4 - jump table is ints, program is bytes
-				;program - need to add in base address
+				;jtab - need to add in base address
 		mov [ebx], ecx; does program.[v] <- curpointer
+		
 		;now do program.[curpointer] <- end(v)
-		mov eax, ecx
-		sub eax, program
+		mov eax, ecx ;eax is now cur loc
+		sub eax, program; eax now dist to current instruction
 		lea ebx, [jtab + eax*4] ;need to add 4*eax as the jmp table is ints, whilst the program is chars (bytes)
-								;ecx is now the location in the jump table corresponding to the whileend instruction
-		add eax, program
-		mov [ebx], eax; does program.[curpointer] <- v
+								;ebx is now location in jump table of current instruction
+								;now we need to work out where to jump to
+		pop eax
+		mov [ebx], eax
 		jmp .loop_start
 	.loop_start
 		inc ecx
@@ -130,9 +136,11 @@ printmem:
 initptrs:
 	mov eax, program
 	mov [instrpointer], eax
-	mov eax, array
-	mov [datapointer], eax
+	mov ebx, array
+	mov [datapointer], ebx
 	jmp decode
+	
+	
 ;routines for different opcodes
 incdpC:
 	mov eax, [instrpointer]
@@ -140,7 +148,7 @@ incdpC:
 	mov [instrpointer], eax
 	
 	mov eax, [datapointer]
-	inc eax
+	add eax,4
 	mov [datapointer], eax
 	
 	jmp decode
@@ -150,7 +158,7 @@ decdpC:
 	mov [instrpointer], eax
 	
 	mov eax, [datapointer]
-	dec eax
+	sub eax,4
 	mov [datapointer], eax
 	
 	jmp decode
@@ -190,13 +198,14 @@ outputC:
 	jmp decode
 whilestartC:
 	;check if memory.[pointer] = 0
-	mov eax, [datapointer]
+	mov ebx, [datapointer]
+	mov eax, [ebx]
 	cmp eax, 0
 	jne .nojmp
 	;now we need to get the new value for instrpointer
 	mov eax, [instrpointer]
-	lea ebx, [eax*4+jtab]
-	mov ebx, [ebx]
+	sub eax, program
+	mov ebx, [eax*4+jtab]
 	inc ebx
 	mov [instrpointer], ebx
 	jmp decode
@@ -207,13 +216,14 @@ whilestartC:
 		jmp decode
 whileendC:
 	;check if memory.[pointer] = 0
-	mov eax, [datapointer]
+	mov ebx, [datapointer]
+	mov eax, [ebx]
 	cmp eax, 0
-	jne .nojmp
+	je .nojmp
 	;now we need to get the new value for instrpointer
 	mov eax, [instrpointer]
-	lea ebx, [eax*4+jtab]
-	mov ebx, [ebx]
+	sub eax, program
+	mov ebx, [eax*4+jtab]
 	inc ebx
 	mov [instrpointer], ebx
 	jmp decode
