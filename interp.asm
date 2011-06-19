@@ -3,7 +3,8 @@
 extern printf
 extern malloc
 global WinMain
-
+;x64 calling convention
+;ints / pointers - RCX RDX R8 R9
 ;
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
 segment .data
@@ -16,18 +17,18 @@ program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+
 debug db "dd",0
 intf db "%i" ,10,0
 charf db "%c",0
-hellostr db "hello world", 10 ,10
-incdp dw ">"
-decdp dw "<"
-incbyte dw "+"
-decbyte dw "-"
-output dw "."
-input dw ","
-whilestart dw "["
-whileend dw "]"
-datapointer dd 0
-instrpointer dd 0
-array dd 0
+hellostr db "loop", 10 ,0
+incdp db ">"
+decdp db "<"
+incbyte db "+"
+decbyte db "-"
+output db "."
+input db ","
+whilestart db "["
+whileend db "]"
+datapointer dq 0
+instrpointer dq 0
+array dq 0
 ;
 ; use bss to hold brainfuck program memory
 ;
@@ -175,8 +176,8 @@ incbyteC:
 	jmp decode
 outputC:
 	mov rax, [datapointer]
-	mov rcx, [rax]
-	mov rdx, charf
+	mov rcx, charf
+	mov rdx, [rax]
 	call printf
 	
 	mov rax, [instrpointer]
