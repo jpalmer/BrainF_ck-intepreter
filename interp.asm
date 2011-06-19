@@ -1,6 +1,7 @@
 ;The aim of this is to create a brainfuck intepreter
 ;status - working on loop instruction
 extern _printf
+extern _malloc
 global _main
 
 ;
@@ -24,15 +25,16 @@ output dw "."
 input dw ","
 whilestart dw "["
 whileend dw "]"
+datapointer dd 0
+instrpointer dd 0
+array dd 0
 ;
 ; use bss to hold brainfuck program memory
 ;
 segment .bss
 ;memory for program
-array: resw 100 ;if you change this need to change in zeromem and printmem routines
-jtab: resb 10000; should support programs up to 10k in length - 10k should be enough for anyone
-datapointer: resw 4 ;not sure why I need to reserve 4 words - reserving only 1 appears to be insufficient
-instrpointer: resw 4
+;array: resw 10 ;if you change this need to change in zeromem and printmem routines
+jtab: resb 100000; should support programs up to 10k in length - 10k should be enough for anyone
 
 ;
 ; code is put in the .text segment
@@ -40,14 +42,18 @@ instrpointer: resw 4
 
 segment .text
 _main:
+	push 50000
+	call _malloc
+	add esp, 4
+	mov [array], eax
 	jmp Zeromem
 ;Here we zero the memory - this is necersarry because memory may not necersarrily be 0 at the start
 Zeromem:
 	mov ecx, 0 ;0 value
-	mov eax,404 ;404 = memsize *4 +1
-	add eax, array
+	mov eax,40004 ;
+	add eax, [array]
 	mov ebx, 0
-	add ebx, array
+	add ebx, [array]
 	.loop_start:
 		sub eax,4
 		mov [eax], ecx
@@ -122,7 +128,7 @@ printmem:
 		pop eax
 		add eax, 4
 		push eax
-		mov ebx,400
+		mov ebx,4000
 		add ebx,array
 		cmp ebx, eax
 		je initptrs
@@ -136,7 +142,7 @@ printmem:
 initptrs:
 	mov eax, program
 	mov [instrpointer], eax
-	mov ebx, array
+	mov ebx, [array]
 	mov [datapointer], ebx
 	jmp decode
 	

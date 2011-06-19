@@ -115,7 +115,7 @@ let rec runprogram (program:chars[]) =
     let count = ref 0
     let rec rfun p ip= 
         count := !count + 1
-        if ip>= program.Length || !count > 90000000 then ()
+        if ip>= program.Length then () //|| !count > 90000000 then ()
         else
             match program.[ip] with
             |Incdata(t) -> rfun  (p+t) (ip+1)
