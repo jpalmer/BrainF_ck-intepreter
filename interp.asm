@@ -3,6 +3,12 @@
 extern printf
 extern malloc
 global WinMain
+;due to different calling convention, the registers that we use depend on the OS
+%ifdef win64
+	%define vd rcx
+%endif
+
+
 ;x64 calling convention
 ;ints / pointers - RCX RDX R8 R9
 ;
@@ -53,7 +59,7 @@ WinMain:
 ;could possibly make this faster using SSE / mmx
 Zeromem:
 	mov rcx, 0 ;0 value
-	mov rax,40008 ;
+	mov rax,40008 ;currently 5k memory cells
 	add rax, [array]
 	mov rbx, 0
 	add rbx, [array]
@@ -80,8 +86,7 @@ Zeromem:
 Buildjmptab:
 	;Variables I need to store
 		;I use the actual stack as the stack here - why not + frees up registers
-		;ecx - position through program
-		;a,b,d are free for other things - 64bit would be really nice for the extra registers here
+		;rcx - position through program
 	mov rcx, program
 	dec rcx ;for loop to be easier
 	jmp .loop_start
@@ -89,25 +94,23 @@ Buildjmptab:
 		push rcx
 		jmp .loop_start
 	.whileend:
-		pop rax ;eax is v
+		pop rax ;rax is v
 		push rax ; use this again later
-		sub rax, program ;eax is now count through program of original start tax
+		sub rax, program ;rax is now count through program of original start tax
 		;now I need to calculate the position to put the address
-		lea rbx, [jtab + rax*8] 
+		mov [jtab + rax*8], rcx
 			;explaination - 
-				;eax = position through program 
-				;*4 - jump table is ints, program is bytes
+				;rax = position through program 
+				;*8 - jump table is ints, program is bytes
 				;jtab - need to add in base address
-		mov [rbx], rcx; does program.[v] <- curpointer
 		
 		;now do program.[curpointer] <- end(v)
 		mov rax, rcx ;eax is now cur loc
 		sub rax, program; eax now dist to current instruction
-		lea rbx, [jtab + rax*8] ;need to add 4*eax as the jmp table is ints, whilst the program is chars (bytes)
+		pop rdx
+		mov [jtab + rax*8],rdx ;need to add 4*eax as the jmp table is ints, whilst the program is chars (bytes)
 								;ebx is now location in jump table of current instruction
 								;now we need to work out where to jump to
-		pop rax
-		mov [rbx], rax
 		jmp .loop_start
 	.loop_start:
 		inc rcx
@@ -118,7 +121,7 @@ Buildjmptab:
 		mov dl, [whileend]
 		cmp dl,al
 		je  .whileend
-		mov dl, 0
+		xor dl, dl ;move 0
 		cmp dl,al
 		jne .loop_start
 		jmp initptrs ;now go to main loop
@@ -251,8 +254,8 @@ decode:
 	mov bl, 0 ;the input string is nul-terminated, so the final char will be 0 - note that this comparison is not necersarry as the fallthrough goes to the exit case
 	cmp al, bl
 	je exit
+;EXIT HERE
 exit:
-	;EXIT HERE
-        ret
+   ret
 
 
