@@ -136,45 +136,45 @@ initptrs:
 	
 ;routines for different opcodes
 incdpC:
-	mov rax, [instrpointer]
-	inc rax
-	mov [instrpointer], rax
+	cmp r8, 0
+	je _update
+	mov [rbx], vd
 	
-	mov rax, [datapointer]
-	add rax,8
-	mov [datapointer], rax
+	._update:
+		add rbx, 8
+		mov vd, [rbx]
+		
+	inc rdx
+	mov al, [rdx]
 	
 	jmp decode
 decdpC:
-	mov rax, [instrpointer]
-	inc rax
-	mov [instrpointer], rax
+	cmp r8, 0
+	je _update
+	mov [rbx], vd
 	
-	mov rax, [datapointer]
-	sub rax,8
-	mov [datapointer], rax
+	._update:
+		sub rbx, 8
+		mov vd, [rbx]
+		
+	inc rdx
+	mov al, [rdx]
 	
 	jmp decode
 decbyteC:
-	mov rax, [datapointer]
-	mov rbx, [rax]
-	dec rbx
-	mov [rax], rbx
+	dec vd
+	or r8, 1
 	
-	mov rax, [instrpointer]
-	inc rax
-	mov [instrpointer], rax
+	inc rdx
+	mov al, [rdx]
 	
 	jmp decode
 incbyteC:
-	mov rax, [datapointer]
-	mov rbx, [rax]
-	inc rbx
-	mov [rax], rbx
+	inc vd
+	or r8, 1
 	
-	mov rax, [instrpointer]
-	inc rax
-	mov [instrpointer], rax
+	inc rdx
+	mov al, [rdx]
 	
 	jmp decode
 outputC:
