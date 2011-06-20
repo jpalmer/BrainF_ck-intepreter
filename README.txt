@@ -1,1 +1,6 @@
-This is a simple brainf*** intepreter written in f#.  It does some simple optimisations (combines multiple increment / decrement calls, also jump locations for while loops are pre-computed)
+This is a simple brainf*** intepreter. 
+
+Languages
+F# - with some primitive optimizations (combines repetitions of the same instruction)
+
+asm - no optimizations yet
