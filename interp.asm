@@ -229,4 +229,5 @@ decode:
 	je exit
 ;EXIT HERE
 exit:
+	xor rax,rax
    ret
