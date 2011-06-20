@@ -2,10 +2,16 @@
 ;status - working on loop instruction
 extern printf
 extern malloc
+extern puts
+extern putchar
 global main
-;x64 calling convention
+;x64 calling convention - windows
 ;ints / pointers - RCX RDX R8 R9
 ;
+;x64 calling convention - linux
+;rdi, rsi, rdx, rcx, r8, r9,;
+
+
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
 segment .data
 ;loopless hello world
@@ -43,10 +49,11 @@ jtab: resb 100000; should support programs up to 10k in length - 10k should be e
 
 segment .text
 main:
-	mov rcx,  50000
-	call malloc
-
-	mov [array], rax
+    sub rsp, 8
+    mov rdi,  50000
+    call malloc
+    add rsp, 8
+    mov [array], rax
 	jmp Zeromem
 ;Here we zero the memory - this is necersarry because memory may not necersarrily be 0 at the start
 ;could possibly make this faster using SSE / mmx
@@ -175,10 +182,8 @@ incbyteC:
 	jmp decode
 outputC:
 	mov rax, [datapointer]
-	mov rcx, charf
-	mov rdx, [rax]
-	call printf
-	
+	mov rdi, charf
+    call putchar
 	mov rax, [instrpointer]
 	inc rax
 	mov [instrpointer], rax
