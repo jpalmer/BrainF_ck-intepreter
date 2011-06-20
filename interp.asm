@@ -182,7 +182,7 @@ incbyteC:
 	jmp decode
 outputC:
 	mov rax, [datapointer]
-	mov rdi, charf
+	mov rdi, [rax]
     call putchar
 	mov rax, [instrpointer]
 	inc rax
