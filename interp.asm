@@ -3,12 +3,16 @@
 extern printf
 extern malloc
 extern putchar
-global WinMain
 ;due to different calling convention, the registers that we use depend on the OS
 %ifdef WIN64
 	%define vd rcx
+    %define main WinMain
+%endif
+%ifdef LIN64
+    %define vd rdi
 %endif
 
+global main
 
 ;x64 calling convention
 ;ints / pointers - RCX RDX R8 R9
@@ -41,7 +45,7 @@ segment .bss
 jtab: resb 100000; should support programs up to 10k in length - 10k should be enough for anyone
 
 segment .text
-WinMain:
+main:
 	mov vd,  50000
 	call malloc
 	mov [array], rax

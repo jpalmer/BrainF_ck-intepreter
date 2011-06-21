@@ -6,3 +6,6 @@
 *.zip
 *.suo
 *.o
+*.swp
+makefile~
+a.out
