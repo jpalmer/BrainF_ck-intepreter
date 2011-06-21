@@ -44,9 +44,11 @@ jtab: resb 100000; should support programs up to 10k in length - 10k should be e
 
 segment .text
 main:
+%ifdef WIN64 ;not sure precisely what this does, got it by doing an objdump of a c exe - consider it magic
 	push   rbp
    	mov    rbp,rsp
    	sub    rsp,0x20
+%endif
 	mov vd,  50000
 	call malloc
 	mov [array], rax
@@ -233,15 +235,8 @@ decode:
 	je exit
 ;EXIT HERE
 exit:
-;	  401550:	55                   	push   %rbp
- ; 401551:	48 89 e5             	mov    %rsp,%rbp
-  ;401554:	48 83 ec 20          	sub    $0x20,%rsp
-;  401558:	e8 c3 0d 00 00       	callq  402320 <__main>
- ; 40155d:	48 8d 0d ec 2a 00 00 	lea    0x2aec(%rip),%rcx        # 404050 <.rdata>
-  ;401564:	e8 4f 16 00 00       	callq  402bb8 <puts>
- ; 401569:	b8 00 00 00 00       	mov    $0x0,%eax
- ; 40156e:	c9                   	leaveq 
- ; 40156f:	c3                   	retq   
 	xor rax,rax
+%ifdef WIN64
 	leave
+%endif
     ret
