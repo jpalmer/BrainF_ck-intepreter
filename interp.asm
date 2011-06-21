@@ -1,5 +1,5 @@
 ;The aim of this is to create a brainfuck intepreter
-;status - working on loop instruction
+;status - current error appears to be that the data is not being correctly saved - not sure what is going on with that 
 extern printf
 extern malloc
 extern putchar
@@ -20,9 +20,9 @@ global main
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
 segment .data
 ;loopless hello world
-program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
+;program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
 ;hello world w/ loops
-;program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
+program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
 ;factorial
 ;program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0       ; don't forget nul terminator
 debug db "dd",0
@@ -37,8 +37,6 @@ output db "."
 input db ","
 whilestart db "["
 whileend db "]"
-datapointer dq 0
-instrpointer dq 0
 array dq 0
 
 segment .bss
@@ -86,14 +84,11 @@ Buildjmptab:
 				;rax = position through program 
 				;*8 - jump table is ints, program is bytes
 				;jtab - need to add in base address
-		
 		;now do program.[curpointer] <- end(v)
-		mov rax, rcx ;eax is now cur loc
-		sub rax, program; eax now dist to current instruction
+		mov rax, rcx ;rax is now cur loc
+		sub rax, program; rax now dist to current instruction
 		pop rdx
-		mov [jtab + rax*8],rdx ;need to add 4*eax as the jmp table is ints, whilst the program is chars (bytes)
-								;ebx is now location in jump table of current instruction
-								;now we need to work out where to jump to
+		mov [jtab + rax*8],rdx 
 		jmp .loop_start
 	.loop_start:
 		inc rcx
@@ -113,28 +108,27 @@ initptrs:
 	mov rdx, program
 	mov al, [rdx]
 	mov rbx, [array]
-	mov [datapointer], rbx
 	xor vd,vd
 	jmp decode
 	
 	
 ;routines for different opcodes
 incdpC:
-	cmp r8, 0
-	je .update
+;	cmp r8, 0
+;	je .update ;r8 is set if the value at the data pointer has been modified
 	mov [rbx], vd
-	
+;fall through	
 	.update:
 		add rbx, 8
 		mov vd, [rbx]
-		
+;fall through
 	inc rdx
 	mov al, [rdx]
 	
 	jmp decode
 decdpC:
-	cmp r8, 0
-	je .update
+;	cmp r8, 0
+;	je .update
 	mov [rbx], vd
 	
 	.update:
@@ -147,7 +141,7 @@ decdpC:
 	jmp decode
 decbyteC:
 	dec vd
-	or r8, 1
+;	or r8, 1
 	
 	inc rdx
 	mov al, [rdx]
@@ -155,14 +149,15 @@ decbyteC:
 	jmp decode
 incbyteC:
 	inc vd
-	or r8, 1
+;	or r8, 1
 	
 	inc rdx
 	mov al, [rdx]
 	
 	jmp decode
 outputC:
-	push rbx
+	;works correctly in linux, but not in windows
+    push rbx
 	push vd
 	push r8
 	push rdx
@@ -182,7 +177,9 @@ whilestartC:
 	;check if memory.[pointer] = 0
 	cmp vd, 0
 	jne .nojmp
-	;now we need to get the new value for instrpointer
+	jmp .jmp
+    .jmp:
+    ;now we need to get the new value for instrpointer
 	sub rdx, program
 	mov rdx, [rdx*8+jtab]
 	;fall through
