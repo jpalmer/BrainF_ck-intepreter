@@ -20,9 +20,9 @@ global main
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
 segment .data
 ;loopless hello world
-program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
+;program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
 ;hello world w/ loops
-;program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
+program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
 ;factorial
 ;program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0       ; don't forget nul terminator
 debug db "dd",0
@@ -119,26 +119,18 @@ initptrs:
 	
 ;routines for different opcodes
 incdpC:
-;	cmp r8, 0
-;	je .update ;r8 is set if the value at the data pointer has been modified
-	mov [rbx], vd
-;fall through	
-	.update:
-		add rbx, 8
-		mov vd, [rbx]
-;fall through
+	mov [rbx], vd	
+	add rbx, 8 ;ints are 8 bytes
+	mov vd, [rbx]
+	
 	inc rdx
 	mov al, [rdx]
 	
 	jmp decode
 decdpC:
-;	cmp r8, 0
-;	je .update
 	mov [rbx], vd
-	
-	.update:
-		sub rbx, 8
-		mov vd, [rbx]
+	sub rbx, 8
+	mov vd, [rbx]
 		
 	inc rdx
 	mov al, [rdx]
@@ -146,7 +138,6 @@ decdpC:
 	jmp decode
 decbyteC:
 	dec vd
-;	or r8, 1
 	
 	inc rdx
 	mov al, [rdx]
@@ -154,7 +145,6 @@ decbyteC:
 	jmp decode
 incbyteC:
 	inc vd
-;	or r8, 1
 	
 	inc rdx
 	mov al, [rdx]
@@ -182,7 +172,7 @@ whilestartC:
 	;check if memory.[pointer] = 0
 	cmp vd, 0
 	jne .nojmp
-	jmp .jmp
+	jmp .jmp ;for clarity
     .jmp:
     ;now we need to get the new value for instrpointer
 	sub rdx, program
