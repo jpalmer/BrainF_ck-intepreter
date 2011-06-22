@@ -6,7 +6,7 @@ extern putchar
 ;due to different calling convention, the registers that we use depend on the OS
 %ifdef WIN64
 	%define vd rcx
-    %define main WinMain
+    %define main WinMain ;on windows main is not called main
 %endif
 %ifdef LIN64
     %define vd rdi
@@ -20,9 +20,9 @@ global main
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
 segment .data
 ;loopless hello world
-program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
+;program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
 ;hello world w/ loops
-;program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
+program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
 ;factorial
 ;program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0       ; don't forget nul terminator
 debug db "dd",0
@@ -37,7 +37,7 @@ output db "."
 input db ","
 whilestart db "["
 whileend db "]"
-array dq 0
+array dq 0,0,0,0,0,0,0,0,0,0,0 ;why not have some padding
 
 segment .bss
 jtab: resb 100000; should support programs up to 10k in length - 10k should be enough for anyone
@@ -49,7 +49,12 @@ main:
    	mov    rbp,rsp
    	sub    rsp,0x20
 %endif
-	mov vd,  50000
+%ifdef LIN64
+    push rbp
+    mov rbp,rsp
+    sub rsp,0x10
+%endif
+	mov vd,  0x5000000
 	call malloc
 	mov [array], rax
 	
@@ -57,11 +62,11 @@ main:
 ;Here we zero the memory - this is necersarry because memory may not necersarrily be 0 at the start
 ;could possibly make this faster using SSE / mmx
 Zeromem:
-	mov rcx, 0 ;0 value
+	mov rcx, 0 ;0 value to store in memory
 	mov rax,40008 ;currently 5k memory cells
-	add rax, [array]
+	add rax, [array] ;rax is 'end' of memory
 	mov rbx, 0
-	add rbx, [array]
+	add rbx, [array];rbx is 'start' of memory
 	.loop_start:
 		sub rax,8
 		mov [rax], rcx
@@ -106,21 +111,19 @@ Buildjmptab:
 		je  .whileend
 		xor dl, dl ;move 0
 		cmp dl,al
-		jne .loop_start
+		jne .loop_start ;if not end, keep going
 		jmp initptrs ;now go to main loop
 		
 initptrs:
 	mov rdx, program
 	mov al, [rdx]
 	mov rbx, [array]
-	xor vd,vd
+	mov vd, [rbx]
 	jmp decode
 	
 	
 ;routines for different opcodes
 incdpC:
-;	cmp r8, 0
-;	je .update ;r8 is set if the value at the data pointer has been modified
 	mov [rbx], vd
 ;fall through	
 	.update:
@@ -132,8 +135,6 @@ incdpC:
 	
 	jmp decode
 decdpC:
-;	cmp r8, 0
-;	je .update
 	mov [rbx], vd
 	
 	.update:
@@ -142,26 +143,21 @@ decdpC:
 		
 	inc rdx
 	mov al, [rdx]
-	
 	jmp decode
 decbyteC:
 	dec vd
-;	or r8, 1
 	
 	inc rdx
 	mov al, [rdx]
-	
 	jmp decode
 incbyteC:
 	inc vd
-;	or r8, 1
 	
 	inc rdx
 	mov al, [rdx]
-	
 	jmp decode
 outputC:
-	;works correctly in linux, but not in windows
+	;works correctly in both oses - not sure if extra stack space necersarry, but keep it anyway 
     push rbx
 	push vd
 	push r8
@@ -236,7 +232,5 @@ decode:
 ;EXIT HERE
 exit:
 	xor rax,rax
-%ifdef WIN64
 	leave
-%endif
     ret
