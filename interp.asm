@@ -156,9 +156,7 @@ outputC:
 	push vd
 	push r8
 	push rdx
-	sub rsp,32
 	call putchar
-	add rsp,32
 	pop rdx
 	pop r8
 	pop vd
