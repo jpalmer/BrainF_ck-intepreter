@@ -126,7 +126,7 @@ Allocjmptab:
     .loop_start:
         inc rax
         inc rcx
-        cmp byte [rax],0
+        cmp byte [rax],8
         je .loop_done
     .loop_done:
         mov rcx, [plength]
