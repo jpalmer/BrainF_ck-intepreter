@@ -19,11 +19,11 @@ global main
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
 segment .data
 ;loopless hello world
-program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
+;program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
 ;hello world w/ loops
 ;program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
 ;factorial
-;program db ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0
+program db ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0
 debug db "dd",0
 intf db "%i" ,10,0
 charf db "%c",0
@@ -70,7 +70,7 @@ maparr:
         mov byte [rax], 3
         jmp .loop
     .idp:
-        mov byte [rax], 4
+        mov byte [rax], 2
         jmp .loop
     .inp:
         mov byte [rax], 7
@@ -172,7 +172,7 @@ Buildjmptab:
 		mov dl, 5 ;whileend
 		cmp dl,al
 		je  .whileend
-		xor dl, dl ;move 0
+		mov dl, 8 ;move 8 - EOF
 		cmp dl,al
 		jne .loop_start ;if not end, keep going
 		jmp initptrs ;now go to main loop
@@ -256,21 +256,21 @@ whileendC:
 		jmp decode
 ;Instruction decode loop
 decode:
-	cmp al, 2
+	and al,al
+    je incbyteC
+    dec al
+    je decbyteC
+    dec al
 	je incdpC
-	cmp al, 3
+	dec al
 	je decdpC
-	cmp al, 1
-	je decbyteC
-	cmp al, 0
-	je incbyteC
-	cmp al, 6
-	je outputC
-	cmp al, 4
-	je whilestartC
-	cmp al, 5
-	je whileendC
-	cmp al, 8 ;the input string is nul-terminated, so the final char will be 0 - note that this comparison is not necersarry as the fallthrough goes to the exit case
+	dec al
+    je whilestartC
+    dec al
+    je whileendC
+    dec al
+    je outputC
+    sub al, 2
 	je exit
 ;EXIT HERE
 exit:
