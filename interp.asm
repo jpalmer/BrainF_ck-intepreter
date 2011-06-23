@@ -24,7 +24,7 @@ segment .data
 ;hello world w/ loops
 program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
 ;factorial
-;program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0       ; don't forget nul terminator
+program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0       ; don't forget nul terminator
 debug db "dd",0
 intf db "%i" ,10,0
 charf db "%c",0
@@ -136,10 +136,8 @@ incdpC:
 	jmp decode
 decdpC:
 	mov [rbx], vd
-	
-	.update:
-		sub rbx, 8
-		mov vd, [rbx]
+	sub rbx, 8
+	mov vd, [rbx]
 		
 	inc rdx
 	mov al, [rdx]
@@ -162,9 +160,7 @@ outputC:
 	push vd
 	push r8
 	push rdx
-	sub rsp,32
 	call putchar
-	add rsp,32
 	pop rdx
 	pop r8
 	pop vd
@@ -178,7 +174,7 @@ whilestartC:
 	;check if memory.[pointer] = 0
 	cmp vd, 0
 	jne .nojmp
-	jmp .jmp
+	jmp .jmp ;for clarity
     .jmp:
     ;now we need to get the new value for instrpointer
 	sub rdx, program
@@ -205,29 +201,21 @@ whileendC:
 ;could be made cleverer - but probably safe to assume that all the opcodes are in memory
 ;best thing to do could be to map all the input chars to ints 1 - 8 and use those as offsets in a jump table - but this works	
 decode:
-	mov bl, [incdp]
-	cmp al, bl
+	cmp al, [incdp]
 	je incdpC
-	mov bl, [decdp]
-	cmp al, bl
+	cmp al, [decdp]
 	je decdpC
-	mov bl, [decbyte]
-	cmp al, bl
+	cmp al, [decbyte]
 	je decbyteC
-	mov bl, [incbyte]
-	cmp al, bl
+	cmp al, [incbyte]
 	je incbyteC
-	mov bl, [output]
-	cmp al, bl
+	cmp al, [output]
 	je outputC
-	mov bl, [whilestart]
-	cmp al, bl
+	cmp al, [whilestart]
 	je whilestartC
-	mov bl, [whileend]
-	cmp al, bl
+	cmp al, [whileend]
 	je whileendC
-	mov bl, 0 ;the input string is nul-terminated, so the final char will be 0 - note that this comparison is not necersarry as the fallthrough goes to the exit case
-	cmp al, bl
+	cmp al, 0 ;the input string is nul-terminated, so the final char will be 0 - note that this comparison is not necersarry as the fallthrough goes to the exit case
 	je exit
 ;EXIT HERE
 exit:
