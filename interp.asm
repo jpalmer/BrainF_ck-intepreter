@@ -23,7 +23,7 @@ program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;hello world w/ loops
 ;program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
 ;factorial
-;program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0
+;program db ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0
 debug db "dd",0
 intf db "%i" ,10,0
 charf db "%c",0
@@ -65,7 +65,23 @@ maparr:
         jmp .loop
     .out:
         mov byte [rax], 6
-    .loop
+        jmp .loop
+    .ddp:
+        mov byte [rax], 3
+        jmp .loop
+    .idp:
+        mov byte [rax], 4
+        jmp .loop
+    .inp:
+        mov byte [rax], 7
+        jmp .loop
+    .ws:
+        mov byte [rax], 4
+        jmp .loop
+    .we:
+        mov byte [rax], 5
+        jmp .loop
+    .loop:
         inc rax
         mov bl, [rax]
         cmp bl, [incbyte]
@@ -74,8 +90,20 @@ maparr:
         je .db
         cmp bl, [output]
         je .out
+        cmp bl, [decdp]
+        je .ddp
+        cmp bl, [incdp]
+        je .idp
+        cmp bl, [input]
+        je .inp
+        cmp bl, [whilestart]
+        je .ws
+        cmp bl, [whileend]
+        je .we
+
         cmp bl, 0
         jne .loop
+        mov byte [rax], 8
         jmp Zeromem
 Zeromem:
 	mov rcx, 0 ;0 value to store in memory
@@ -138,10 +166,10 @@ Buildjmptab:
 	.loop_start:
 		inc rcx
 		mov al, [rcx]
-		mov dl, [whilestart]
+		mov dl, 4 ;whilestart
 		cmp dl,al
 		je .whilestart
-		mov dl, [whileend]
+		mov dl, 5 ;whileend
 		cmp dl,al
 		je  .whileend
 		xor dl, dl ;move 0
@@ -228,9 +256,9 @@ whileendC:
 		jmp decode
 ;Instruction decode loop
 decode:
-	cmp al, [incdp]
+	cmp al, 2
 	je incdpC
-	cmp al, [decdp]
+	cmp al, 3
 	je decdpC
 	cmp al, 1
 	je decbyteC
@@ -238,11 +266,11 @@ decode:
 	je incbyteC
 	cmp al, 6
 	je outputC
-	cmp al, [whilestart]
+	cmp al, 4
 	je whilestartC
-	cmp al, [whileend]
+	cmp al, 5
 	je whileendC
-	cmp al, 0 ;the input string is nul-terminated, so the final char will be 0 - note that this comparison is not necersarry as the fallthrough goes to the exit case
+	cmp al, 8 ;the input string is nul-terminated, so the final char will be 0 - note that this comparison is not necersarry as the fallthrough goes to the exit case
 	je exit
 ;EXIT HERE
 exit:
