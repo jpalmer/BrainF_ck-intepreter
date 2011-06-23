@@ -22,7 +22,7 @@ segment .data
 ;loopless hello world
 ;program db "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------.",0
 ;hello world w/ loops
-program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
+;program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
 ;factorial
 program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0       ; don't forget nul terminator
 debug db "dd",0
@@ -37,10 +37,9 @@ output db "."
 input db ","
 whilestart db "["
 whileend db "]"
-array dq 0,0,0,0,0,0,0,0,0,0,0 ;why not have some padding
-
-segment .bss
-jtab: resb 100000; should support programs up to 10k in length - 10k should be enough for anyone
+array dq 0
+jtab dq 0 ;stored in r9
+plength dq 0
 
 segment .text
 main:
@@ -54,10 +53,10 @@ main:
     mov rbp,rsp
     sub rsp,0x10
 %endif
+    ;allocate memory for memory
 	mov vd,  0x5000000
 	call malloc
 	mov [array], rax
-	
 	jmp Zeromem
 ;Here we zero the memory - this is necersarry because memory may not necersarrily be 0 at the start
 ;could possibly make this faster using SSE / mmx
@@ -71,9 +70,27 @@ Zeromem:
 		sub rax,8
 		mov [rax], rcx
 		cmp rax, rbx
-		je Buildjmptab
+		je Allocjmptab
 		jmp .loop_start
 
+Allocjmptab:
+    ;first calculate prog length
+    mov rax, program
+    dec rax
+    xor rcx,rcx ;use rcx to hold prog length
+    .loop_start:
+        inc rax
+        inc rcx
+        cmp byte [rax],0
+        je .loop_done
+    .loop_done:
+        mov rcx, [plength]
+        ;now allocate memory
+        mov vd, rcx
+        sal vd,3 ;jtab has to store ints, so is 8 times bigger than the program, which is bytes
+        call malloc
+        mov[jtab], rax
+        jmp Buildjmptab
 Buildjmptab:
 	;Variables I need to store
 		;I use the actual stack as the stack here - why not + frees up registers
@@ -89,7 +106,8 @@ Buildjmptab:
 		push rax ; use this again later
 		sub rax, program ;rax is now count through program of original start tax
 		;now I need to calculate the position to put the address
-		mov [jtab + rax*8], rcx
+        mov r9, [jtab]
+		mov [r9 + rax*8], rcx
 			;explaination - 
 				;rax = position through program 
 				;*8 - jump table is ints, program is bytes
@@ -98,7 +116,7 @@ Buildjmptab:
 		mov rax, rcx ;rax is now cur loc
 		sub rax, program; rax now dist to current instruction
 		pop rdx
-		mov [jtab + rax*8],rdx 
+		mov [r9 + rax*8],rdx 
 		jmp .loop_start
 	.loop_start:
 		inc rcx
@@ -124,44 +142,46 @@ initptrs:
 	
 ;routines for different opcodes
 incdpC:
-	mov [rbx], vd
-;fall through	
+	;decode at start should be faster - more time to get next opcode - but didn't actually make a difference
+    inc rdx
+	mov al, [rdx]
+	
+    mov [rbx], vd
 	.update:
 		add rbx, 8
 		mov vd, [rbx]
-;fall through
-	inc rdx
-	mov al, [rdx]
 	
 	jmp decode
 decdpC:
+	inc rdx
+	mov al, [rdx]
 	mov [rbx], vd
 	sub rbx, 8
 	mov vd, [rbx]
 		
-	inc rdx
-	mov al, [rdx]
 	jmp decode
 decbyteC:
+	inc rdx
+	mov al, [rdx]
 	dec vd
 	
-	inc rdx
-	mov al, [rdx]
 	jmp decode
 incbyteC:
-	inc vd
-	
 	inc rdx
 	mov al, [rdx]
+	inc vd
+	
 	jmp decode
 outputC:
 	;works correctly in both oses - not sure if extra stack space necersarry, but keep it anyway 
     push rbx
 	push vd
 	push r8
+    push r9
 	push rdx
 	call putchar
 	pop rdx
+    pop r9
 	pop r8
 	pop vd
 	pop rbx
@@ -178,7 +198,7 @@ whilestartC:
     .jmp:
     ;now we need to get the new value for instrpointer
 	sub rdx, program
-	mov rdx, [rdx*8+jtab]
+	mov rdx, [rdx*8+r9]
 	;fall through
 	.nojmp:
 		inc rdx
@@ -191,7 +211,7 @@ whileendC:
 	je .nojmp
 	;now we need to get the new value for instrpointer
 	sub rdx, program
-	mov rdx, [rdx*8+jtab]
+	mov rdx, [rdx*8+r9]
 	;fall through
 	.nojmp:
 		inc rdx
