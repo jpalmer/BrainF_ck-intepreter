@@ -1,5 +1,5 @@
 ;The aim of this is to create a brainfuck intepreter
-;status - current error appears to be that the data is not being correctly saved - not sure what is going on with that 
+;status - trying for speed increases 
 extern printf
 extern malloc
 extern putchar
@@ -11,12 +11,11 @@ extern putchar
 %ifdef LIN64
     %define vd rdi
 %endif
-
 global main
 
 ;x64 calling convention
 ;ints / pointers - RCX RDX R8 R9
-;
+; - rdi is first on linux
 ; initialized data is put in the .data segment - it may be true that these are not modifiable
 segment .data
 ;loopless hello world
@@ -24,7 +23,7 @@ segment .data
 ;hello world w/ loops
 ;program db "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",0
 ;factorial
-program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0       ; don't forget nul terminator
+program db    ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]", 0
 debug db "dd",0
 intf db "%i" ,10,0
 charf db "%c",0
@@ -43,14 +42,11 @@ plength dq 0
 
 segment .text
 main:
-%ifdef WIN64 ;not sure precisely what this does, got it by doing an objdump of a c exe - consider it magic
 	push   rbp
    	mov    rbp,rsp
+%ifdef WIN64 ;not sure precisely what this does, got it by doing an objdump of a c exe - consider it magic
    	sub    rsp,0x20
-%endif
-%ifdef LIN64
-    push rbp
-    mov rbp,rsp
+%elifdef LIN64
     sub rsp,0x10
 %endif
     ;allocate memory for memory
@@ -58,8 +54,6 @@ main:
 	call malloc
 	mov [array], rax
 	jmp Zeromem
-;Here we zero the memory - this is necersarry because memory may not necersarrily be 0 at the start
-;could possibly make this faster using SSE / mmx
 Zeromem:
 	mov rcx, 0 ;0 value to store in memory
 	mov rax,40008 ;currently 5k memory cells
@@ -139,7 +133,6 @@ initptrs:
 	mov vd, [rbx]
 	jmp decode
 	
-	
 ;routines for different opcodes
 incdpC:
 	;decode at start should be faster - more time to get next opcode - but didn't actually make a difference
@@ -147,9 +140,8 @@ incdpC:
 	mov al, [rdx]
 	
     mov [rbx], vd
-	.update:
-		add rbx, 8
-		mov vd, [rbx]
+    add rbx, 8
+	mov vd, [rbx]
 	
 	jmp decode
 decdpC:
@@ -194,32 +186,24 @@ whilestartC:
 	;check if memory.[pointer] = 0
 	cmp vd, 0
 	jne .nojmp
-	jmp .jmp ;for clarity
-    .jmp:
     ;now we need to get the new value for instrpointer
 	sub rdx, program
 	mov rdx, [rdx*8+r9]
-	;fall through
-	.nojmp:
+	.nojmp: ;fall through
 		inc rdx
 		mov al, [rdx]
 		jmp decode
 	
 whileendC:
-	;check if memory.[pointer] = 0
-	cmp vd, 0
+	cmp vd, 0 ;essentially same as above, but jump test reversed
 	je .nojmp
-	;now we need to get the new value for instrpointer
 	sub rdx, program
 	mov rdx, [rdx*8+r9]
-	;fall through
 	.nojmp:
 		inc rdx
 		mov al, [rdx]
 		jmp decode
 ;Instruction decode loop
-;could be made cleverer - but probably safe to assume that all the opcodes are in memory
-;best thing to do could be to map all the input chars to ints 1 - 8 and use those as offsets in a jump table - but this works	
 decode:
 	cmp al, [incdp]
 	je incdpC
@@ -239,6 +223,6 @@ decode:
 	je exit
 ;EXIT HERE
 exit:
-	xor rax,rax
+	xor rax,rax ;return 0
 	leave
     ret
