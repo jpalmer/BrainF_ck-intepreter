@@ -1,0 +1,2 @@
+Increment values before going in jump table - unsuccesful - not sure why - perhaps the inc instruction later allows for better something or branches are getting mispredicted.
+move program into a register - small slowdown - possibly due to an increase in push / pop in print?
