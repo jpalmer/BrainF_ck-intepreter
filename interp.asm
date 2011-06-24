@@ -39,7 +39,7 @@ whileend db "]"
 array dq 0
 jtab dq 0 ;stored in r9
 plength dq 0
-table dq incbyteC,decbyteC, incdpC, decdpC, whilestartC, whileendC, outputC, exit
+table dq incbyteC,decbyteC, incdpC, decdpC, whilestartC, whileendC, outputC,0, exit
 segment .text
 main:
 	push   rbp
