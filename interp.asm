@@ -101,7 +101,7 @@ maparr:
         cmp bl, [whileend]
         je .we
 
-        cmp bl, 0
+        cmp bl, 0 ;final instruction
         jne .loop
         mov byte [rax], 8
         jmp Zeromem
@@ -258,7 +258,7 @@ whileendC:
 		jmp decode
 ;Instruction decode loop
 decode:
-	jmp [table+rax]
+	jmp [table+rax*8]
 	
 ;EXIT HERE
 exit:
