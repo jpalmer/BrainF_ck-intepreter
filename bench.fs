@@ -1,11 +1,12 @@
 
 let mutable times = []
-let main() =
+let main file arg ()=
     let w = System.Diagnostics.Stopwatch.StartNew()
     let proc = new System.Diagnostics.Process()
     proc.StartInfo.UseShellExecute <- false
     proc.StartInfo.RedirectStandardOutput <- true
-    proc.StartInfo.FileName <- "interp.exe"
+    proc.StartInfo.Arguments <- arg
+    proc.StartInfo.FileName <- file
     proc.Start() |> ignore
     let mutable count = 0
     let buf = Array.create 10000 'a'
@@ -15,10 +16,13 @@ let main() =
     w.Stop()
     let time = w.ElapsedTicks
     times <- (time|>float)::times
-    printfn "%i ticks = %i kticks = %fMticks" time (time /1000L) ((time |> float) / (1000.0*1000.0)) 
-    
-[0..10] |> List.iter (fun t -> main())
 
-let average = times |> List.average
-printfn "average"
-printfn "%f ticks = %f kticks = %fMticks" average (average /1000.0) (average / (1000.0*1000.0)) 
+let bmark file arg comment () =
+    [0..2] |> List.iter (fun t -> main file arg ())
+    
+    let average = times |> List.average
+    printfn "average for %s" comment
+    printfn "%f ticks = %f kticks = %fMticks" average (average /1000.0) (average / (1000.0*1000.0)) 
+
+bmark "interp.exe" "" "asm interpreter" ()
+bmark "mono" "--optimize=all fsharp_interp.exe" "Fsharp interpreter" ()

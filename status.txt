@@ -1,0 +1,3 @@
+Jul 25 2011
+ASM interp: 155 Mticks
+F# interp: 250 MTicks
