@@ -39,7 +39,7 @@ whileend db "]"
 array dq 0
 jtab dq 0 ;stored in r9
 plength dq 0
-table dq incbyteC,decbyteC, incdpC, decdpC, whilestartC, whileendC, outputC,0, exit
+
 segment .text
 main:
 	push   rbp
@@ -101,7 +101,7 @@ maparr:
         cmp bl, [whileend]
         je .we
 
-        cmp bl, 0 ;final instruction
+        cmp bl, 0
         jne .loop
         mov byte [rax], 8
         jmp Zeromem
@@ -179,7 +179,6 @@ Buildjmptab:
 		
 initptrs:
 	mov rdx, program
-	xor rax,rax
 	mov al, [rdx]
 	mov rbx, [array]
 	mov vd, [rbx]
@@ -231,7 +230,6 @@ outputC:
 	pop rbx
 	
 	inc rdx
-	xor rax,rax ;0 high bits
 	mov al, [rdx]
 	
 	jmp decode
@@ -258,8 +256,22 @@ whileendC:
 		jmp decode
 ;Instruction decode loop
 decode:
-	jmp [table+rax*8]
-	
+	and al,al
+    je incbyteC
+    dec al
+    je decbyteC
+    dec al
+	je incdpC
+	dec al
+	je decdpC
+	dec al
+    je whilestartC
+    dec al
+    je whileendC
+    dec al
+    je outputC
+    sub al, 2
+	je exit
 ;EXIT HERE
 exit:
 	xor rax,rax ;return 0
