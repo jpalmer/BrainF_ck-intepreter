@@ -4,3 +4,8 @@ F# interp: 210 MTicks
 
 Jul 26 2011
 ASM compiled: 144 Mticks
+
+#previous data is completely incorrect, benchmark program was broken
+ASM interp: 94 MTicks
+F# interp: 325 MTicks
+ASM compiled: 19.1 MTicks
