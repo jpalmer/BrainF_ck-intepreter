@@ -9,8 +9,8 @@ type chars =
     |Decbyte of int
     |Output
     |Input
-    |Whilestart of int
-    |Whileend of int
+    |Whilestart of int * int
+    |Whileend of int * int
     |Blank
     static member fromstring x=
         match x with
@@ -20,8 +20,8 @@ type chars =
         |'-' -> Decbyte dval
         |'.' -> Output
         |',' -> Input
-        |'[' -> Whilestart 0
-        |']' -> Whileend 0
+        |'[' -> Whilestart (0,0)
+        |']' -> Whileend (0,0)
         | _ -> Blank
 
 
@@ -104,8 +104,8 @@ let fixwhiles (program:chars[]) =
         |Whilestart(_) -> startstack.Push(curpointer)
         |Whileend(_) ->
             let v = startstack.Pop()
-            program.[v] <- Whilestart(curpointer)
-            program.[curpointer] <- Whileend(v)
+            program.[v] <- Whilestart(v,curpointer)
+            program.[curpointer] <- Whileend(v,curpointer)
         |_ -> () //do nothing for other stuff
     program
 
@@ -115,19 +115,19 @@ let makeasm =
         match elem with
         |Incdata(t) ->
             let offset = t*8
-            sprintf "mov [rbx], vd
+            sprintf "mov [rbx], vd ;incdata
                      add rbx, %i
                      mov vd, [rbx]" offset
         |Decdata(t) ->
             let offset = t*8
-            sprintf "mov [rbx], vd
+            sprintf "mov [rbx], vd ;decdata
                      sub rbx, %i
                      mov vd, [rbx]" offset
         |Incbyte(t) ->
-                sprintf "add vd, %i" t
+                sprintf "add vd, %i ;incbyte" t
         |Decbyte(t) ->
-                sprintf "sub vd, %i" t
-        |Output ->" push rbx
+                sprintf "sub vd, %i ;decbyte" t
+        |Output ->" push rbx ;output
                     push vd
                 	push r8
                     push r9
@@ -138,8 +138,18 @@ let makeasm =
                 	pop r8
                 	pop vd
                    	pop rbx"
-                )
-let program = "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.-------------------------------------------------------------------.------------.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.------.--------.-------------------------------------------------------------------."
+        |Whilestart(start,ed) -> 
+                sprintf"and vd,vd
+                 jz labelend%i
+                 labelstart%i:" ed start
+
+        |Whileend(start,ed) ->
+                sprintf"and vd,vd
+                 jnz labelstart%i
+                 labelend%i:" start ed
+
+                 )
+let program = "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>."
 let header = System.IO.File.ReadAllText("header.txt")
 printfn "%s" header
 program |> tokenize |> optimize |> fixwhiles |> makeasm |> Array.iter (fun t -> printfn "%s" t)

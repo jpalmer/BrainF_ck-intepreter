@@ -45,6 +45,6 @@ main:
 %endif
     ;allocate memory for memory
 	mov vd,  0x5000000
-	call malloc
-	mov [array], rax
-
+	call malloc	
+    mov rbx, rax
+	mov vd, [rbx]
