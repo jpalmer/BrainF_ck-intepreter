@@ -1,3 +1,6 @@
 Jul 25 2011
 ASM interp: 95 Mticks
 F# interp: 210 MTicks
+
+Jul 26 2011
+ASM compiled: 144 Mticks

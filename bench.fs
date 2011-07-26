@@ -26,3 +26,5 @@ let bmark file arg comment () =
 
 bmark "interp.exe" "" "asm interpreter" ()
 bmark "mono" "--optimize=all fsharp_interp.exe" "Fsharp interpreter" ()
+bmark "asm.exe" "" "compiled asm" ()
+

@@ -115,41 +115,34 @@ let makeasm =
         match elem with
         |Incdata(t) ->
             let offset = t*8
-            sprintf "mov [rbx], vd ;incdata
-                     add rbx, %i
-                     mov vd, [rbx]" offset
+            sprintf "       add rbx, %i" offset
         |Decdata(t) ->
             let offset = t*8
-            sprintf "mov [rbx], vd ;decdata
-                     sub rbx, %i
-                     mov vd, [rbx]" offset
+            sprintf "    sub rbx, %i" offset
         |Incbyte(t) ->
-                sprintf "add vd, %i ;incbyte" t
+                if t = 1 then "    inc QWORD [rbx]" else sprintf "   add QWORD [rbx], %i " t
         |Decbyte(t) ->
-                sprintf "sub vd, %i ;decbyte" t
-        |Output ->" push rbx ;output
-                    push vd
-                	push r8
-                    push r9
-                	push rdx
-                	call putchar
-                	pop rdx
-                    pop r9
-                	pop r8
-                	pop vd
-                   	pop rbx"
+                if t = 1 then "    dec QWORD [rbx]" else sprintf "   sub QWORD [rbx], %i " t
+        |Output ->"    push rbx 
+    push rdx
+    mov vd, [rbx]
+        call putchar
+    pop rdx
+    pop rbx"
         |Whilestart(start,ed) -> 
-                sprintf"and vd,vd
-                 jz labelend%i
-                 labelstart%i:" ed start
+                sprintf"mov rax, [rbx]
+    and QWORD rax, rax
+    jz labelend%i
+    labelstart%i:" ed start
 
         |Whileend(start,ed) ->
-                sprintf"and vd,vd
-                 jnz labelstart%i
-                 labelend%i:" start ed
+                sprintf"    mov rax,[rbx]
+    and rax,rax
+    jnz labelstart%i
+    labelend%i:" start ed
 
                  )
-let program = "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>."
+let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]"
 let header = System.IO.File.ReadAllText("header.txt")
 printfn "%s" header
 program |> tokenize |> optimize |> fixwhiles |> makeasm |> Array.iter (fun t -> printfn "%s" t)
