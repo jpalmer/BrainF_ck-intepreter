@@ -110,8 +110,12 @@ let fixwhiles (program:chars[]) =
     program
 
 let makeasm =
-    Array.map
-     (fun elem ->
+    Array.toList
+    >> (fun t -> t.Head :: t)
+    >> List.toSeq
+    >> Seq.pairwise
+    >> Seq.map
+     (fun (prev,elem) ->
         match elem with
         |Incdata(t) ->
             let offset = t*8
@@ -124,25 +128,35 @@ let makeasm =
         |Decbyte(t) ->
                 if t = 1 then "    dec QWORD [rbx]" else sprintf "   sub QWORD [rbx], %i " t
         |Output ->"    push rbx 
-    push rdx
     mov vd, [rbx]
         call putchar
-    pop rdx
     pop rbx"
-        |Whilestart(start,ed) -> 
-                sprintf"mov rax, [rbx]
+        |Whilestart(start,ed) ->
+            match prev with
+            |Decbyte(_) |Incbyte(_) ->
+                sprintf " jz labelend%i
+    labelstart%i:" ed start
+            |_ ->
+            sprintf"mov rax, [rbx]
     and QWORD rax, rax
     jz labelend%i
     labelstart%i:" ed start
 
-        |Whileend(start,ed) ->
+        |Whileend(start,ed) -> //whileend is optimised based on the previous instruction
+            match prev with
+            |Whileend(_) ->sprintf "    labelend%i:" ed
+            |Decbyte(_) |Incbyte(_) ->
+                sprintf"    jnz labelstart%i
+    labelend%i:" start ed
+
+            |_ ->
                 sprintf"    mov rax,[rbx]
     and rax,rax
     jnz labelstart%i
     labelend%i:" start ed
-
-                 )
-let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]"
+            
+                 ) >> Seq.toArray
+let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 361 lines
 let header = System.IO.File.ReadAllText("header.txt")
 printfn "%s" header
 program |> tokenize |> optimize |> fixwhiles |> makeasm |> Array.iter (fun t -> printfn "%s" t)

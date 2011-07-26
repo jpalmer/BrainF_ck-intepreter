@@ -18,6 +18,7 @@ let main file arg ()=
     times <- (time|>float)::times
 
 let bmark file arg comment () =
+    times <- []
     [0..2] |> List.iter (fun t -> main file arg ())
     
     let average = times |> List.average
