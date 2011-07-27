@@ -8,11 +8,8 @@ type chars =
     |Incbyte of int
     |Decbyte of int
     |Output
-    |Input
     |Whilestart of int * int
     |Whileend of int * int
-    |Lrlm //>+<- (should probably rename)
-    |Blank
     static member fromstring x=
         match x with
         |'>' -> Incdata dval
@@ -20,11 +17,8 @@ type chars =
         |'+' -> Incbyte dval
         |'-' -> Decbyte dval
         |'.' -> Output
-        |',' -> Input
         |'[' -> Whilestart (0,0)
         |']' -> Whileend (0,0)
-        |'?' -> Lrlm //correction done in tokeniser
-        | _ -> Blank
     static member print x =
         match x with
         |Incdata(t) -> sprintf "inc %i" t
@@ -32,14 +26,11 @@ type chars =
         |Incbyte(t) -> sprintf "incb %i" t
         |Decbyte(t) -> sprintf "decb %i" t
         |Output -> "out"
-        |Input -> ""
         |Whilestart(_) -> "start"
         |Whileend(_) -> "end"
-        |Lrlm -> "lrlm"
 
 let tokenize (string:string) = 
-    let ret = string.Replace(">+<-","?").ToCharArray() |> Array.map (chars.fromstring) |> Array.filter(fun t -> t <> Blank)
-
+    let ret = string.ToCharArray() |> Array.map (chars.fromstring)
     ret
 let optimize (program:chars[])=
     //really need to make this a bit cleverer - handle each instruction with a common function
@@ -82,14 +73,54 @@ let fixwhiles (program:chars[]) =
             program.[curpointer] <- Whileend(v,curpointer)
         |_ -> () //do nothing for other stuff
     program
+type Blocktypes =
+    |Whiles of chars
+    |Compute of chars list
+    |Outputb of chars list
+let Blockify (program:chars[]) =
+    let mutable out = []
+    let mutable tmp = []
+    let mutable outflag = false
+    let mutable index = -1
+    while index < (program.Length-1) do
+        index <- index + 1
+        match program.[index] with
+        |Incdata(_) |Decdata(_) |Incbyte(_) |Decbyte(_) -> tmp <- (program.[index] :: tmp) 
+        |Output -> outflag <- true; tmp <- (program.[index] :: tmp)
+        |Whilestart(_) | Whileend(_) ->
+            if tmp <> [] then
+                if outflag then out <- Outputb(tmp) :: out
+                else out <- Compute(tmp) :: out
+            out <- Whiles(program.[index]) :: out
+            tmp<- []
+    if tmp <> [] then
+        if outflag then out <- Outputb(tmp) :: out
+        else out <- Compute(tmp) :: out
+    out
 
-let makeasm =
-    Array.toList
-    >> (fun t -> t.Head :: t) //without this one instruction gets lost due to pairwising.  
-    >> List.toSeq //The way this processing is done could be made faster / more efficient, however the compiler is quite fast so no need yet
-    >> Seq.pairwise
-    >> Seq.map
-     (fun (prev,elem) ->
+let compilecompute block =
+    let offset = ref 0
+    let r = 
+        block
+        |>List.map
+            (fun t -> 
+                match t with
+                |Incdata(t) -> offset := !offset + t;""
+                |Decdata(t) -> offset := !offset - t;""
+                |Incbyte(t) -> sprintf "add QWORD [rbx+%i],%i" (!offset*8) t
+                |Decbyte(t) -> sprintf "sub QWORD [rbx+%i],%i" (!offset*8) t)
+        |> List.filter (fun t -> t <> "") 
+    if !offset <> 0 then r @ (sprintf "add rbx, %i" (!offset * 8) :: []) else r
+//next optimisation idea
+//create 'blocks'
+//      these are delimited by [ and ]
+//      so blocks are a sequence of <>+- .
+// use slow optimisation if block contains . (output is not in a tight loop)
+// otherwise it is possible to figure out every offset needed
+let makeasm prog =
+    prog
+    |>List.map     
+       (fun (elem) ->
         match elem with
         |Incdata(t) ->
             let offset = t*8
@@ -106,36 +137,29 @@ let makeasm =
         call putchar
     pop rbx"
         |Whilestart(start,ed) -> //since decbyte, incbyte and lrlm modify the flags registers, we don't need to do the test here
-            match prev with
-            |Decbyte(_) |Incbyte(_) |Lrlm ->
-                sprintf " jz labelend%i
-    labelstart%i:" ed start
-            |_ ->
-            sprintf"    mov rax, [rbx]
+           sprintf"    mov rax, [rbx]
     and QWORD rax, rax
     jz labelend%i
     labelstart%i:" ed start
 
         |Whileend(start,ed) -> //whileend sequences can occur (once about 1/2 way through program),
                                 //if you make it past the first whileend instruction you will always make it past all the rest, so no need for checks.
-            match prev with
-            |Whileend(_) ->sprintf "    labelend%i:" ed
-            |Decbyte(_) |Incbyte(_) |Lrlm ->
-                sprintf"    jnz labelstart%i
-    labelend%i:" start ed
-
-            |_ ->
-                sprintf"    mov rax,[rbx]
+            sprintf"    mov rax,[rbx]
     and rax,rax
     jnz labelstart%i
     labelend%i:" start ed
-        |Lrlm -> "    inc QWORD [rbx+8]
-    dec QWORD [rbx]"
-                 ) >> Seq.toArray
+                 )
+let compileComplete = 
+    List.collect
+        (fun t -> 
+            match t  with
+            |Compute(t) -> compilecompute t
+            |Outputb(t) -> makeasm t 
+            |Whiles(t) -> makeasm (t::[]) )
 let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 309 lines (for reference there are 294 brinf*ck instructions
 let header = System.IO.File.ReadAllText("header.txt")
 printfn "%s" header
-program |> tokenize |> optimize |> fixwhiles |> makeasm |> Array.iter (fun t -> printfn "%s" t)
+program |> tokenize |> optimize |> fixwhiles |> Blockify |> compileComplete |> List.iter (fun t -> printfn "%s" t)
 let footer = "xor rax,rax ;return 0
 	leave
     ret"
