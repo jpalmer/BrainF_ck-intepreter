@@ -1,5 +1,3 @@
-﻿// Learn more about F# at http://fsharp.net
-
 let opt = true
 let dval = if opt then 0 else 1
 type chars = 
@@ -10,6 +8,7 @@ type chars =
     |Output
     |Whilestart of int * int
     |Whileend of int * int
+    |Zero
     static member fromstring x=
         match x with
         |'>' -> Incdata dval
@@ -19,6 +18,7 @@ type chars =
         |'.' -> Output
         |'[' -> Whilestart (0,0)
         |']' -> Whileend (0,0)
+        |'0' -> Zero
     static member print x =
         match x with
         |Incdata(t) -> sprintf "inc %i" t
@@ -28,9 +28,10 @@ type chars =
         |Output -> "out"
         |Whilestart(_) -> "start"
         |Whileend(_) -> "end"
+        |Zero -> "zero"
 
 let tokenize (string:string) = 
-    let ret = string.ToCharArray() |> Array.map (chars.fromstring)
+    let ret = string.Replace("[-]","0").ToCharArray() |> Array.map (chars.fromstring)
     ret
 let optimize (program:chars[])=
     //really need to make this a bit cleverer - handle each instruction with a common function
@@ -58,7 +59,7 @@ let optimize (program:chars[])=
     optimisepass (Decbyte(0)) (fun t -> Decbyte(t))
     let ret = program |> Array.filter (fun t -> t <> Incdata(0) && t <> Decdata(0) && t <> Incbyte(0) && t <> Decbyte(0))
     //uncomment below to print optimised instruction stream to stderr
-  //  ret |> Array.iter (fun t -> eprintfn "%s" (chars.print t))
+    //ret |> Array.iter (fun t -> eprintfn "%s" (chars.print t))
     ret
 let fixwhiles (program:chars[]) =
     let startstack = System.Collections.Generic.Stack<_>()
@@ -86,6 +87,14 @@ let Blockify (program:chars[]) =
         index <- index + 1
         match program.[index] with
         |Incdata(_) |Decdata(_) |Incbyte(_) |Decbyte(_) -> tmp <- (program.[index] :: tmp) 
+        |Zero ->
+            if tmp <> [] then
+                if outflag then out <- Outputb(tmp |> List.rev) :: out
+                else out <- Compute(tmp |> List.rev) :: out
+            out <- Compute(Zero::[]) :: out
+            tmp<- []
+
+            
         |Output -> outflag <- true; tmp <- (program.[index] :: tmp)
         |Whilestart(_) | Whileend(_) ->
             if tmp <> [] then
@@ -122,7 +131,10 @@ let compilecompute block =
                 |Decbyte(t) -> 
                     cleanfinish := FlagsSet; 
                     if t = 1 then sprintf "dec QWORD [rbx%s]" offstr
-                    else sprintf "sub QWORD [rbx%s],%i" offstr t)
+                    else sprintf "sub QWORD [rbx%s],%i" offstr t
+                |Zero -> 
+                    cleanfinish := FlagsUnset
+                    "    mov QWORD [rbx], 0")
         |> List.filter (fun t -> t <> "") 
     if !offset > 0 then 
         r @ (sprintf "add rbx, %i" (!offset * 8) :: []) ,FlagsUnset
@@ -157,10 +169,14 @@ let makeasm prog stat=
         call putchar
     pop rbx"
         |Whilestart(start,ed) -> //since decbyte, incbyte and lrlm modify the flags registers, we don't need to do the test here
-           
-           sprintf"    mov rax, [rbx]
+            match stat with
+            |FlagsUnset | Wend ->
+               sprintf"    mov rax, [rbx]
     and QWORD rax, rax
     jz labelend%i
+    labelstart%i:" ed start
+            |FlagsSet ->
+                sprintf "jz labelend%i
     labelstart%i:" ed start
 
         |Whileend(start,ed) -> //whileend sequences can occur (once about 1/2 way through program),
@@ -197,7 +213,10 @@ let compileComplete =
                     let r = makeasm (t::[]) (!prev)
                     prev := FlagsSet
                     r)
-let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 309 lines (for reference there are 294 brinf*ck instructions
+//new ideas for things to optimise
+//[-] -> xor v,v
+//[>+<-] -> mem[p+1] += mem[p] ; mem[p] = 0
+let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 283 lines (including header) (for reference there are 294 brinf*ck instructions
 let header = System.IO.File.ReadAllText("header.txt")
 printfn "%s" header
 program |> tokenize |> optimize |> fixwhiles |> Blockify |> compileComplete |> List.iter (fun t -> printfn "%s" t)
