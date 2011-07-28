@@ -14,4 +14,7 @@ Jul 28 2011
 ASM compiled: 18 MTicks
 
 Jul 28 2011
-ASM compled: 16.3 MTicks
+ASM compiled: 16.3 MTicks
+
+Jul 28 2011
+ASM compiled: 13.1 MTicks

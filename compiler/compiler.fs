@@ -9,6 +9,7 @@ type chars =
     |Whilestart of int * int
     |Whileend of int * int
     |Zero
+    |Rplm
     static member fromstring x=
         match x with
         |'>' -> Incdata dval
@@ -19,6 +20,7 @@ type chars =
         |'[' -> Whilestart (0,0)
         |']' -> Whileend (0,0)
         |'0' -> Zero
+        |'1' -> Rplm
     static member print x =
         match x with
         |Incdata(t) -> sprintf "inc %i" t
@@ -31,7 +33,7 @@ type chars =
         |Zero -> "zero"
 
 let tokenize (string:string) = 
-    let ret = string.Replace("[-]","0").ToCharArray() |> Array.map (chars.fromstring)
+    let ret = string.Replace("[-]","0").Replace("[>+<-]","1").ToCharArray() |> Array.map (chars.fromstring)
     ret
 let optimize (program:chars[])=
     //really need to make this a bit cleverer - handle each instruction with a common function
@@ -87,11 +89,11 @@ let Blockify (program:chars[]) =
         index <- index + 1
         match program.[index] with
         |Incdata(_) |Decdata(_) |Incbyte(_) |Decbyte(_) -> tmp <- (program.[index] :: tmp) 
-        |Zero ->
+        |Zero | Rplm ->
             if tmp <> [] then
                 if outflag then out <- Outputb(tmp |> List.rev) :: out
                 else out <- Compute(tmp |> List.rev) :: out
-            out <- Compute(Zero::[]) :: out
+            out <- Compute(program.[index]::[]) :: out
             tmp<- []
 
             
@@ -134,7 +136,13 @@ let compilecompute block =
                     else sprintf "sub QWORD [rbx%s],%i" offstr t
                 |Zero -> 
                     cleanfinish := FlagsUnset
-                    "    mov QWORD [rbx], 0")
+                    "    mov QWORD [rbx], 0"
+                |Rplm ->
+                    cleanfinish := FlagsUnset
+                    "mov rax, [rbx]
+    add QWORD [rbx+8], rax
+    mov QWORD [rbx],0"
+                )
         |> List.filter (fun t -> t <> "") 
     if !offset > 0 then 
         r @ (sprintf "add rbx, %i" (!offset * 8) :: []) ,FlagsUnset
@@ -213,10 +221,13 @@ let compileComplete =
                     let r = makeasm (t::[]) (!prev)
                     prev := FlagsSet
                     r)
+//specially optimised sequences
+//[-] mem[p] = 0 //(O(N)*O(dec) -> O(1))
+//[>+<-] -> mem[p+1] += mem[p] ; mem[p] = 0 //(O(N)*O(dec) -> O(add))
+
 //new ideas for things to optimise
-//[-] -> xor v,v
-//[>+<-] -> mem[p+1] += mem[p] ; mem[p] = 0
-let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 283 lines (including header) (for reference there are 294 brinf*ck instructions
+//[ some combination of <,>,+,- ] where N(>) = N(<) - this is doable - there are 6 more loops that can be eliminated this way.  Will also get previous already done optimisations for free
+let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 283 lines (including header) (for reference there are 271 brinf*ck instructions
 let header = System.IO.File.ReadAllText("header.txt")
 printfn "%s" header
 program |> tokenize |> optimize |> fixwhiles |> Blockify |> compileComplete |> List.iter (fun t -> printfn "%s" t)
