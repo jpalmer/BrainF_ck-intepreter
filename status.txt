@@ -9,3 +9,6 @@ ASM compiled: 144 Mticks
 ASM interp: 94 MTicks
 F# interp: 325 MTicks
 ASM compiled: 19.1 MTicks
+
+Jul 28 2011
+ASM compiled: 18 MTicks

@@ -25,7 +25,7 @@ let bmark file arg comment () =
     printfn "average for %s" comment
     printfn "%f ticks = %f kticks = %fMticks" average (average /1000.0) (average / (1000.0*1000.0)) 
 
-bmark "interp.exe" "" "asm interpreter" ()
-bmark "mono" "--optimize=all fsharp_interp.exe" "Fsharp interpreter" ()
+//bmark "interp.exe" "" "asm interpreter" ()
+//bmark "mono" "--optimize=all fsharp_interp.exe" "Fsharp interpreter" ()
 bmark "asm.exe" "" "compiled asm" ()
 

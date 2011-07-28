@@ -89,35 +89,55 @@ let Blockify (program:chars[]) =
         |Output -> outflag <- true; tmp <- (program.[index] :: tmp)
         |Whilestart(_) | Whileend(_) ->
             if tmp <> [] then
-                if outflag then out <- Outputb(tmp) :: out
-                else out <- Compute(tmp) :: out
+                if outflag then out <- Outputb(tmp |> List.rev) :: out
+                else out <- Compute(tmp |> List.rev) :: out
             out <- Whiles(program.[index]) :: out
             tmp<- []
     if tmp <> [] then
         if outflag then out <- Outputb(tmp) :: out
         else out <- Compute(tmp) :: out
-    out
-
+    out |> List.rev
+type BlockEnd =
+    |FlagsSet
+    |FlagsUnset
+    |Wend
 let compilecompute block =
     let offset = ref 0
+    let cleanfinish = ref FlagsUnset
     let r = 
         block
         |>List.map
-            (fun t -> 
+            (fun t ->
+                let offstr = 
+                    if !offset > 0 then sprintf"+%i" (!offset*8)
+                    else if !offset = 0 then ""
+                    else sprintf "%i" (!offset*8)
                 match t with
-                |Incdata(t) -> offset := !offset + t;""
-                |Decdata(t) -> offset := !offset - t;""
-                |Incbyte(t) -> sprintf "add QWORD [rbx+%i],%i" (!offset*8) t
-                |Decbyte(t) -> sprintf "sub QWORD [rbx+%i],%i" (!offset*8) t)
+                |Incdata(t) -> offset := !offset + t; cleanfinish := FlagsUnset; ""
+                |Decdata(t) -> offset := !offset - t; cleanfinish := FlagsUnset; ""
+                |Incbyte(t) -> 
+                    cleanfinish := FlagsSet; 
+                    if t = 1 then sprintf "inc QWORD [rbx%s]" offstr
+                    else sprintf "add QWORD [rbx%s],%i" offstr t
+                |Decbyte(t) -> 
+                    cleanfinish := FlagsSet; 
+                    if t = 1 then sprintf "dec QWORD [rbx%s]" offstr
+                    else sprintf "sub QWORD [rbx%s],%i" offstr t)
         |> List.filter (fun t -> t <> "") 
-    if !offset <> 0 then r @ (sprintf "add rbx, %i" (!offset * 8) :: []) else r
+    if !offset > 0 then 
+        r @ (sprintf "add rbx, %i" (!offset * 8) :: []) ,FlagsUnset
+    else if !offset < 0 then
+        r @ (sprintf "sub rbx, %i" (abs(!offset * 8)) :: []) ,FlagsUnset
+
+    else (r, !cleanfinish)
+   
 //next optimisation idea
 //create 'blocks'
 //      these are delimited by [ and ]
 //      so blocks are a sequence of <>+- .
 // use slow optimisation if block contains . (output is not in a tight loop)
 // otherwise it is possible to figure out every offset needed
-let makeasm prog =
+let makeasm prog stat=
     prog
     |>List.map     
        (fun (elem) ->
@@ -137,6 +157,7 @@ let makeasm prog =
         call putchar
     pop rbx"
         |Whilestart(start,ed) -> //since decbyte, incbyte and lrlm modify the flags registers, we don't need to do the test here
+           
            sprintf"    mov rax, [rbx]
     and QWORD rax, rax
     jz labelend%i
@@ -144,18 +165,38 @@ let makeasm prog =
 
         |Whileend(start,ed) -> //whileend sequences can occur (once about 1/2 way through program),
                                 //if you make it past the first whileend instruction you will always make it past all the rest, so no need for checks.
-            sprintf"    mov rax,[rbx]
+            match stat with
+            |FlagsUnset ->
+                sprintf"    mov rax,[rbx]
     and rax,rax
     jnz labelstart%i
     labelend%i:" start ed
-                 )
+            |FlagsSet -> 
+                sprintf "   jnz labelstart%i
+    labelend%i:" start ed
+            |Wend -> sprintf "labelend%i:" ed     )
 let compileComplete = 
+    let prev = ref FlagsUnset
     List.collect
         (fun t -> 
             match t  with
-            |Compute(t) -> compilecompute t
-            |Outputb(t) -> makeasm t 
-            |Whiles(t) -> makeasm (t::[]) )
+            |Compute(t) -> 
+                let p,s = compilecompute t; 
+                prev := s; 
+                p
+            |Outputb(t) -> 
+                prev := FlagsUnset;
+                makeasm t (!prev)
+            |Whiles(t) ->
+                match t with
+                |Whileend(_) ->
+                    let r = makeasm (t::[]) (!prev) 
+                    prev := Wend
+                    r
+                | _ -> 
+                    let r = makeasm (t::[]) (!prev)
+                    prev := FlagsSet
+                    r)
 let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 309 lines (for reference there are 294 brinf*ck instructions
 let header = System.IO.File.ReadAllText("header.txt")
 printfn "%s" header
