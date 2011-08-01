@@ -50,47 +50,41 @@ let compilecompute block =
     add QWORD [rbx+8], rax
     mov QWORD [rbx],0"
                 )
-        |> List.filter (fun t -> t <> "") 
+        |> List.filter (fun t -> t <> "") //incdata / decdata don't make instructions so filter them out 
+    //now actually change the data pointer value
     if !offset > 0 then 
-        r @ (sprintf "add rbx, %i" (!offset * memsize) :: []) ,FlagsUnset
+        r @ (sprintf "add rbx, %i" (!offset * memsize) :: []) ,FlagsUnset 
     else if !offset < 0 then
         r @ (sprintf "sub rbx, %i" (abs(!offset * memsize)) :: []) ,FlagsUnset
-
     else (r, !cleanfinish)
    
-//next optimisation idea
-//create 'blocks'
-//      these are delimited by [ and ]
-//      so blocks are a sequence of <>+- .
-// use slow optimisation if block contains . (output is not in a tight loop)
-// otherwise it is possible to figure out every offset needed
 let makeasm prog stat=
     prog
     |>List.map     
-       (fun (elem) ->
-        match elem with
+       (function
         |Incdata(t) ->
             sprintf "    add rbx, %i" (t*memsize)
         |Decdata(t) ->
             sprintf "    sub rbx, %i" (t*memsize)
         |Incbyte(t) ->
-                if t = 1 then "    inc QWORD [rbx]" else sprintf "   add QWORD [rbx], %i " t
+            match t with
+            |1 -> "    inc QWORD [rbx]"  
+            | _ -> sprintf "   add QWORD [rbx], %i " t
         |Decbyte(t) ->
-                if t = 1 then "    dec QWORD [rbx]" else sprintf "   sub QWORD [rbx], %i " t
+            match t with
+            |1 -> "    dec QWORD [rbx]" 
+            | _ ->sprintf "   sub QWORD [rbx], %i " t
         |Output -> outstr
         |Whilestart(start,ed) -> //since decbyte, incbyte and lrlm modify the flags registers, we don't need to do the test here
             match stat with
-            |FlagsUnset | Wend ->
-               sprintf ws ed start
+            |FlagsUnset | Wend -> sprintf ws ed start
             |FlagsSet ->
                 sprintf "jz labelend%i
     labelstart%i:" ed start
-
         |Whileend(start,ed) -> //whileend sequences can occur (once about 1/2 way through program),
                                 //if you make it past the first whileend instruction you will always make it past all the rest, so no need for checks.
             match stat with
-            |FlagsUnset ->
-                sprintf we start ed
+            |FlagsUnset -> sprintf we start ed
             |FlagsSet -> 
                 sprintf "   jnz labelstart%i
     labelend%i:" start ed
@@ -108,15 +102,12 @@ let compileComplete =
                 prev := FlagsUnset;
                 makeasm t (!prev)
             |Whiles(t) ->
+                let r = makeasm (t::[]) (!prev) 
                 match t with
-                |Whileend(_) ->
-                    let r = makeasm (t::[]) (!prev) 
-                    prev := Wend
-                    r
-                | _ -> 
-                    let r = makeasm (t::[]) (!prev)
-                    prev := FlagsSet
-                    r)
+                |Whileend(_) -> prev := Wend
+                | _ -> prev := FlagsSet
+                r
+                    )
 //specially optimised sequences
 //[-] mem[p] = 0 //(O(N)*O(dec) -> O(1))
 //[>+<-] -> mem[p+1] += mem[p] ; mem[p] = 0 //(O(N)*O(dec) -> O(add))
