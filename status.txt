@@ -17,4 +17,4 @@ Jul 28 2011
 ASM compiled: 16.3 MTicks
 
 Jul 28 2011
-ASM compiled: 13.1 MTicks
+ASM compiled: 13.1 MTicks (~25 x faster than F# interp)
