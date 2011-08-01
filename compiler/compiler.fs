@@ -1,5 +1,20 @@
 module Main
 open Initial
+let outstr ="    push rbx 
+    mov vd, [rbx]
+        call putchar
+    pop rbx"
+    //unfortunately the compiler barfs on externally defined printf format strings
+let ws: Printf.StringFormat<_>= "    mov rax, [rbx]
+    and rax, rax
+    jz labelend%i
+    labelstart%i:"
+let we: Printf.StringFormat<_>= "    mov rax,[rbx]
+    and rax,rax
+    jnz labelstart%i
+    labelend%i:"
+[<Literal>]
+let memsize=8 //size of a memory cell in bytes - use 64 bit mem cells
 type BlockEnd =
     |FlagsSet
     |FlagsUnset
@@ -12,9 +27,9 @@ let compilecompute block =
         |>List.map
             (fun t ->
                 let offstr = 
-                    if !offset > 0 then sprintf"+%i" (!offset*8)
+                    if !offset > 0 then sprintf"+%i" (!offset*memsize)
                     else if !offset = 0 then ""
-                    else sprintf "%i" (!offset*8)
+                    else sprintf "%i" (!offset*memsize)
                 match t with
                 |Incdata(t) -> offset := !offset + t; cleanfinish := FlagsUnset; ""
                 |Decdata(t) -> offset := !offset - t; cleanfinish := FlagsUnset; ""
@@ -37,9 +52,9 @@ let compilecompute block =
                 )
         |> List.filter (fun t -> t <> "") 
     if !offset > 0 then 
-        r @ (sprintf "add rbx, %i" (!offset * 8) :: []) ,FlagsUnset
+        r @ (sprintf "add rbx, %i" (!offset * memsize) :: []) ,FlagsUnset
     else if !offset < 0 then
-        r @ (sprintf "sub rbx, %i" (abs(!offset * 8)) :: []) ,FlagsUnset
+        r @ (sprintf "sub rbx, %i" (abs(!offset * memsize)) :: []) ,FlagsUnset
 
     else (r, !cleanfinish)
    
@@ -55,26 +70,18 @@ let makeasm prog stat=
        (fun (elem) ->
         match elem with
         |Incdata(t) ->
-            let offset = t*8
-            sprintf "    add rbx, %i" offset
+            sprintf "    add rbx, %i" (t*memsize)
         |Decdata(t) ->
-            let offset = t*8
-            sprintf "    sub rbx, %i" offset
+            sprintf "    sub rbx, %i" (t*memsize)
         |Incbyte(t) ->
                 if t = 1 then "    inc QWORD [rbx]" else sprintf "   add QWORD [rbx], %i " t
         |Decbyte(t) ->
                 if t = 1 then "    dec QWORD [rbx]" else sprintf "   sub QWORD [rbx], %i " t
-        |Output ->"    push rbx 
-    mov vd, [rbx]
-        call putchar
-    pop rbx"
+        |Output -> outstr
         |Whilestart(start,ed) -> //since decbyte, incbyte and lrlm modify the flags registers, we don't need to do the test here
             match stat with
             |FlagsUnset | Wend ->
-               sprintf"    mov rax, [rbx]
-    and QWORD rax, rax
-    jz labelend%i
-    labelstart%i:" ed start
+               sprintf ws ed start
             |FlagsSet ->
                 sprintf "jz labelend%i
     labelstart%i:" ed start
@@ -83,10 +90,7 @@ let makeasm prog stat=
                                 //if you make it past the first whileend instruction you will always make it past all the rest, so no need for checks.
             match stat with
             |FlagsUnset ->
-                sprintf"    mov rax,[rbx]
-    and rax,rax
-    jnz labelstart%i
-    labelend%i:" start ed
+                sprintf we start ed
             |FlagsSet -> 
                 sprintf "   jnz labelstart%i
     labelend%i:" start ed
