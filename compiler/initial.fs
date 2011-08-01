@@ -33,10 +33,10 @@ type chars =
         |Whilestart(_) -> "start"
         |Whileend(_) -> "end"
         |Zero -> "zero"
-
+///tokenize also does some trivial optimisations
 let tokenize (string:string) = 
-    let ret = string.Replace("[-]","0").Replace("[>+<-]","1").ToCharArray() |> Array.map (chars.fromstring)
-    ret
+    string.Replace("[-]","0").Replace("[>+<-]","1").ToCharArray() |> Array.map (chars.fromstring) 
+///this method is probably poorly name, it doesn't actually optimise, it just condenses consecutive uses of the same character
 let optimize (program:chars[])=
     //really need to make this a bit cleverer - handle each instruction with a common function
     //first optimize part - replace >>> with >(3)
@@ -46,7 +46,6 @@ let optimize (program:chars[])=
         let mutable count = 0
         while curpointer+1 < program.Length do
             curpointer <- curpointer+1
-            
             if program.[curpointer] = opt then
                 if pt = -1 then 
                     pt <- curpointer
@@ -65,6 +64,7 @@ let optimize (program:chars[])=
     //uncomment below to print optimised instruction stream to stderr
     //ret |> Array.iter (fun t -> eprintfn "%s" (chars.print t))
     ret
+/// match up the while blocks with their start / end
 let fixwhiles (program:chars[]) =
     let startstack = System.Collections.Generic.Stack<_>()
     let mutable curpointer = -1
@@ -82,10 +82,11 @@ type Blocktypes =
     |Whiles of chars
     |Compute of chars list
     |Outputb of chars list
+///to enable further optimisations we can coalesce things into blocks
 let Blockify (program:chars[]) =
     let mutable out = []
     let mutable tmp = []
-    let mutable outflag = false
+    let mutable outflag = false //outflag tells us if the block contains an output - currently we don't optimise these
     let mutable index = -1
     while index < (program.Length-1) do
         index <- index + 1
@@ -97,8 +98,6 @@ let Blockify (program:chars[]) =
                 else out <- Compute(tmp |> List.rev) :: out
             out <- Compute(program.[index]::[]) :: out
             tmp<- []
-
-            
         |Output -> outflag <- true; tmp <- (program.[index] :: tmp)
         |Whilestart(_) | Whileend(_) ->
             if tmp <> [] then
@@ -109,4 +108,4 @@ let Blockify (program:chars[]) =
     if tmp <> [] then
         if outflag then out <- Outputb(tmp) :: out
         else out <- Compute(tmp) :: out
-    out |> List.rev
+    out |> List.rev //the list gets built backwards, so reverse

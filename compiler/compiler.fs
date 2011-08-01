@@ -1,5 +1,6 @@
 module Main
 open Initial
+//the strings below make the code that uses them a bit ugly
 let outstr ="    push rbx 
     mov vd, [rbx]
         call putchar
