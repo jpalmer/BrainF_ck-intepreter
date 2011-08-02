@@ -50,6 +50,7 @@ let compilecompute block =
                     "mov rax, [rbx]
     add QWORD [rbx+8], rax
     mov QWORD [rbx],0"
+                |Output |Whilestart(_) |Whileend(_) -> failwith "invalid instruction in compute block"
                 )
         |> List.filter (fun t -> t <> "") //incdata / decdata don't make instructions so filter them out 
     //now actually change the data pointer value
@@ -58,7 +59,7 @@ let compilecompute block =
     else if !offset < 0 then
         r @ (sprintf "sub rbx, %i" (abs(!offset * memsize)) :: []) ,FlagsUnset
     else (r, !cleanfinish)
-   
+///this function generates slower assembler - only used in output blocks as order matters
 let makeasm prog stat=
     prog
     |>List.map     
@@ -76,6 +77,7 @@ let makeasm prog stat=
             |1 -> "    dec QWORD [rbx]" 
             | _ ->sprintf "   sub QWORD [rbx], %i " t
         |Output -> outstr
+        |Rplm |Zero -> failwith "optimised instruction not expected - only unoptimised instructions should exist in unoptimised blocks"
         |Whilestart(start,ed) -> //since decbyte, incbyte and lrlm modify the flags registers, we don't need to do the test here
             match stat with
             |FlagsUnset | Wend -> sprintf ws ed start

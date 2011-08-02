@@ -23,6 +23,7 @@ type chars =
         |']' -> Whileend (0,0)
         |'0' -> Zero
         |'1' -> Rplm
+        | _ -> failwith "malformed Brainf_ck program"
     static member print x =
         match x with
         |Incdata(t) -> sprintf "inc %i" t
@@ -33,6 +34,7 @@ type chars =
         |Whilestart(_) -> "start"
         |Whileend(_) -> "end"
         |Zero -> "zero"
+        |Rplm -> "rplm"
 ///tokenize also does some trivial optimisations
 let tokenize (string:string) = 
     string.Replace("[-]","0").Replace("[>+<-]","1").ToCharArray() |> Array.map (chars.fromstring) 
