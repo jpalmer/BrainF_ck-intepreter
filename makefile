@@ -6,7 +6,7 @@ BENCHEXE=bench.exe
 fsc=/suphys/jpal8929/FSharp-2.0.0.0/bin/fsc.exe
 fscopts=--optimize+ --checked-
 fsfile=Fsharp/fsharp_interp.fs
-mono=/suphys/jpal8929/bin/mono
+mono=/suphys/jpal8929/.local/bin/mono
 fsharp: $(fsfile)
 	mono $(fsc) $(fscopts) $(fsfile)
 windows: $(FILE)

@@ -9,11 +9,11 @@ let outstr ="    push rbx
 let ws: Printf.StringFormat<_>= "    mov rax, [rbx]
     and rax, rax
     jz labelend%i
-    labelstart%i:"
+labelstart%i:"
 let we: Printf.StringFormat<_>= "    mov rax,[rbx]
     and rax,rax
     jnz labelstart%i
-    labelend%i:"
+labelend%i:"
 [<Literal>]
 let memsize=8 //size of a memory cell in bytes - use 64 bit mem cells
 type BlockEnd =
@@ -36,28 +36,39 @@ let compilecompute block =
                 |Decdata(t) -> offset := !offset - t; cleanfinish := FlagsUnset; ""
                 |Incbyte(t) -> 
                     cleanfinish := FlagsSet; 
-                    if t = 1 then sprintf "inc QWORD [rbx%s]" offstr
-                    else sprintf "add QWORD [rbx%s],%i" offstr t
+                    if t = 1 then sprintf "    inc QWORD [rbx%s]" offstr
+                    else sprintf "    add QWORD [rbx%s],%i" offstr t
                 |Decbyte(t) -> 
                     cleanfinish := FlagsSet; 
-                    if t = 1 then sprintf "dec QWORD [rbx%s]" offstr
-                    else sprintf "sub QWORD [rbx%s],%i" offstr t
+                    if t = 1 then sprintf "    dec QWORD [rbx%s]" offstr
+                    else sprintf "    sub QWORD [rbx%s],%i" offstr t
                 |Zero -> 
                     cleanfinish := FlagsUnset
                     "    mov QWORD [rbx], 0"
                 |Rplm ->
                     cleanfinish := FlagsUnset
-                    "mov rax, [rbx]
+                    "    mov rax, [rbx]
     add QWORD [rbx+8], rax
+    mov QWORD [rbx],0"
+                |Lprm ->
+                    cleanfinish := FlagsUnset
+                    "    mov rax, [rbx]
+    add QWORD [rbx-8], rax
+    mov QWORD [rbx],0"
+                |RpRpm ->
+                    cleanfinish := FlagsUnset
+                    "    mov rax, [rbx]
+    add QWORD [rbx+8], rax
+    add QWORD [rbx+16], rax
     mov QWORD [rbx],0"
                 |Output |Whilestart(_) |Whileend(_) -> failwith "invalid instruction in compute block"
                 )
         |> List.filter (fun t -> t <> "") //incdata / decdata don't make instructions so filter them out 
     //now actually change the data pointer value
     if !offset > 0 then 
-        r @ (sprintf "add rbx, %i" (!offset * memsize) :: []) ,FlagsUnset 
+        r @ (sprintf "    add rbx, %i" (!offset * memsize) :: []) ,FlagsUnset 
     else if !offset < 0 then
-        r @ (sprintf "sub rbx, %i" (abs(!offset * memsize)) :: []) ,FlagsUnset
+        r @ (sprintf "    sub rbx, %i" (abs(!offset * memsize)) :: []) ,FlagsUnset
     else (r, !cleanfinish)
 ///this function generates slower assembler - only used in output blocks as order matters
 let makeasm prog stat=
@@ -77,20 +88,20 @@ let makeasm prog stat=
             |1 -> "    dec QWORD [rbx]" 
             | _ ->sprintf "   sub QWORD [rbx], %i " t
         |Output -> outstr
-        |Rplm |Zero -> failwith "optimised instruction not expected - only unoptimised instructions should exist in unoptimised blocks"
+        |Rplm |Zero |Lprm |RpRpm -> failwith "optimised instruction not expected - only unoptimised instructions should exist in unoptimised blocks"
         |Whilestart(start,ed) -> //since decbyte, incbyte and lrlm modify the flags registers, we don't need to do the test here
             match stat with
             |FlagsUnset | Wend -> sprintf ws ed start
             |FlagsSet ->
-                sprintf "jz labelend%i
-    labelstart%i:" ed start
+                sprintf "    jz labelend%i
+labelstart%i:"   ed start
         |Whileend(start,ed) -> //whileend sequences can occur (once about 1/2 way through program),
                                 //if you make it past the first whileend instruction you will always make it past all the rest, so no need for checks.
             match stat with
             |FlagsUnset -> sprintf we start ed
             |FlagsSet -> 
                 sprintf "   jnz labelstart%i
-    labelend%i:" start ed
+labelend%i:"     start ed
             |Wend -> sprintf "labelend%i:" ed     )
 let compileComplete = 
     let prev = ref FlagsUnset

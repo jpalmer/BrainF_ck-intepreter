@@ -9,5 +9,5 @@ fsexe=compiler.exe
 asmfile=asm.asm
 mono=/suphys/jpal8929/bin/mono
 asm.exe: $(fsfile) 
-	mono $(fsc) $(fscopts) $(fsfile) -g &&	mono --debug $(fsexe) > $(asmfile) && nasm $(asmfile) -DLIN64 -f elf64 -o $(OBJ) && gcc $(OBJ) -o $(EXE)
+	mono $(fsc) $(fscopts) $(fsfile) -g && mono --debug $(fsexe) > $(asmfile) && nasm $(asmfile) -DLIN64 -f elf64 -o $(OBJ) && gcc $(OBJ) -o $(EXE)
 
