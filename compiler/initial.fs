@@ -11,7 +11,7 @@ type chars =
     |Whilestart of int * int
     |Whileend of int * int
     |Zero
-    |Rplm |Lprm |RpRpm |LpLpm
+    |Rplm |Lprm |RpRpm |LpLpm |Rppm
     static member fromstring x=
         match x with
         |'>' -> Incdata dval
@@ -26,6 +26,7 @@ type chars =
         |'2' -> Lprm
         |'3' -> RpRpm
         |'4' -> LpLpm
+        |'5' -> Rppm
         | _ -> failwith "malformed Brainf_ck program"
     static member print x =
         match x with
@@ -39,7 +40,8 @@ type chars =
         |t -> sprintf "%A" t
 ///tokenize also does some trivial optimisations
 let tokenize (string:string) = 
-    string.Replace("[-]","0").Replace("[>+<-]","1").Replace("[<+>-]","2").Replace("[>+>+<<-]","3").Replace("[<<+>+>-]","4").ToCharArray() |> Array.map (chars.fromstring) 
+    string.Replace("[-]","0").Replace("[>+<-]","1").Replace("[<+>-]","2").Replace("[>+>+<<-]","3").Replace("[<<+>+>-]","4").Replace("[>++<-]","5").ToCharArray() |> Array.map (chars.fromstring) 
+
 ///this method is probably poorly name, it doesn't actually optimise, it just condenses consecutive uses of the same character
 let optimize (program:chars[])=
     //really need to make this a bit cleverer - handle each instruction with a common function
@@ -96,7 +98,7 @@ let Blockify (program:chars[]) =
         index <- index + 1
         match program.[index] with
         |Incdata(_) |Decdata(_) |Incbyte(_) |Decbyte(_) -> tmp <- (program.[index] :: tmp) 
-        |Zero | Rplm |Lprm | RpRpm |LpLpm ->
+        |Zero | Rplm |Lprm | RpRpm |LpLpm |Rppm ->
             if tmp <> [] then
                 if outflag then out <- Outputb(tmp |> List.rev) :: out
                 else out <- Compute(tmp |> List.rev) :: out
