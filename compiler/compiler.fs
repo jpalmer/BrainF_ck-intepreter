@@ -77,21 +77,17 @@ let compilecompute block =
         block
         |>List.collect
             (fun t ->
-                let offstr = 
-                    if !offset > 0 then sprintf"+%i" (!offset*memsize)
-                    else if !offset = 0 then ""
-                    else sprintf "%i" (!offset*memsize)
                 match t with
                 |Incdata(t) -> offset := !offset + t; cleanfinish := FlagsUnset; []
                 |Decdata(t) -> offset := !offset - t; cleanfinish := FlagsUnset; []
                 |Incbyte(t) -> 
                     cleanfinish := FlagsSet; 
-                    if t = 1 then Inc(Memoffset(Rbx,!offset))::[] 
-                    else  Add(Memoffset(Rbx,!offset),I(t))::[]
+                    if t = 1 then Inc(Memoffset(Rbx,!offset * memsize))::[] 
+                    else  Add(Memoffset(Rbx,!offset * memsize),I(t))::[]
                 |Decbyte(t) -> 
                     cleanfinish := FlagsSet; 
-                    if t = 1 then Dec(Memoffset(Rbx,!offset))::[]
-                    else Sub(Memoffset(Rbx,!offset),I(t))::[]
+                    if t = 1 then Dec(Memoffset(Rbx,!offset * memsize))::[]
+                    else Sub(Memoffset(Rbx,!offset * memsize),I(t))::[]
                 |Zero -> 
                     cleanfinish := FlagsUnset
                     Mov(Memloc(Rbx),I(0))::[]
