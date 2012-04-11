@@ -43,10 +43,10 @@ type Instruction =
     |Shl of Register * int
     member x.ASM =
         match x with
-        |Push(r) -> sprintf "push %s" (r.ASM)
-        |Mov(a,b) -> sprintf "mov %s,%s" (a.ASM) (b.ASM)
-        |Pop(r) -> sprintf "pop %s" (r.ASM)
-        |And(r) -> sprintf "and %s,%s" (r.ASM) (r.ASM)
+        |Push(r) -> sprintf "push QWORD %s" (r.ASM)
+        |Mov(a,b) -> sprintf "mov QWORD %s,%s" (a.ASM) (b.ASM)
+        |Pop(r) -> sprintf "pop QWORD %s" (r.ASM)
+        |And(r) -> sprintf "and QWORD %s,%s" (r.ASM) (r.ASM)
         |Jz(s) -> sprintf "jz %s" s
         |Jnz(s) -> sprintf "jnz %s" s
         |Inc(l) -> sprintf "inc QWORD %s" (l.ASM)
@@ -55,15 +55,15 @@ type Instruction =
         |Sub(l,v) -> sprintf "sub QWORD %s,%s" (l.ASM) (v.ASM)
         |Call(s) -> sprintf "call %s" s
         |Label(s) -> sprintf "%s:" s
-        |Shl(r,c) -> sprintf "shl %s %i" (r.ASM) c
+        |Shl(r,c) -> sprintf "shl %s, %i" (r.ASM) c
 open Initial
 //the strings below make the code that uses them a bit ugly
 let outstr = Push(Rbx)::Mov(Reg(Vd),Loc(Memloc(Rbx)))::Call("putchar")::Pop(Rbx)::[] 
     //unfortunately the compiler barfs on externally defined printf format strings
-let ws i= 
-    Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::Jz(sprintf "labelend%i" i)::Label(sprintf "labelstart%i" i)::[]
-let we i= 
-    Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::Jnz(sprintf "labelstart%i" i)::Label(sprintf "labelend%i" i)::[]
+let ws i j= 
+    Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::Jz(sprintf "labelend%i" i)::Label(sprintf "labelstart%i" j)::[]
+let we i j= 
+    Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::Jnz(sprintf "labelstart%i" i)::Label(sprintf "labelend%i" j)::[]
 [<Literal>]
 let memsize=8 //size of a memory cell in bytes - use 64 bit mem cells
 type BlockEnd =
@@ -114,43 +114,42 @@ let compilecompute block =
                 )
     //now actually change the data pointer value
     if !offset > 0 then 
-        r @ (sprintf "    add rbx, %i ;fix offset" (!offset * memsize) :: []) ,FlagsUnset 
+        r @ ((Add(Reg(Rbx),I(!offset*memsize))) :: []) ,FlagsUnset 
     else if !offset < 0 then
-        r @ (sprintf "    sub rbx, %i ; fix offset" (abs(!offset * memsize)) :: []) ,FlagsUnset
+        r @ ((Sub(Reg(Rbx),I(abs(!offset*memsize)))) :: []) ,FlagsUnset 
     else (r, !cleanfinish)
 ///this function generates slower assembler - only used in output blocks as order matters
 let makeasm prog stat=
     prog
-    |>List.map     
+    |>List.collect
        (function
         |Incdata(t) ->
-            sprintf "    add rbx, %i;incdata" (t*memsize)
+            Add(Reg(Rbx),I(t*memsize))::[]
         |Decdata(t) ->
-            sprintf "    sub rbx, %i;incdata" (t*memsize)
+            Sub(Reg(Rbx),I(t*memsize))::[]
         |Incbyte(t) ->
             match t with
-            |1 -> "    inc QWORD [rbx];incbyte"  
-            | _ -> sprintf "   add QWORD [rbx], %i ;incbyte" t
+            |1 -> Inc(Memloc(Rbx)) ::[]
+            | _ -> Add(Memloc(Rbx),I(t))::[]
         |Decbyte(t) ->
             match t with
-            |1 -> "    dec QWORD [rbx];decbyte" 
-            | _ ->sprintf "   sub QWORD [rbx], %i ;decbyte" t
+            |1 -> Dec(Memloc(Rbx))::[]
+            | _ -> Sub(Memloc(Rbx),I(t))::[]
         |Output -> outstr
         |Rplm |Zero |Lprm |RpRpm |LpLpm -> failwith "optimised instruction not expected - only unoptimised instructions should exist in unoptimised blocks"
         |Whilestart(start,ed) -> //since decbyte, incbyte and lrlm modify the flags registers, we don't need to do the test here
             match stat with
-            |FlagsUnset | Wend -> sprintf ws ed start
+            |FlagsUnset | Wend -> ws ed start
             |FlagsSet ->
-                sprintf "    jz labelend%i ;wstart
-labelstart%i:"   ed start
+                Jz(sprintf "labelend%i" ed)::Label(sprintf "labelstart%i" start)::[]
         |Whileend(start,ed) -> //whileend sequences can occur (once about 1/2 way through program),
                                 //if you make it past the first whileend instruction you will always make it past all the rest, so no need for checks.
             match stat with
-            |FlagsUnset -> sprintf we start ed
+            |FlagsUnset -> we start ed
             |FlagsSet -> 
-                sprintf "   jnz labelstart%i ;wend
-labelend%i:"     start ed
-            |Wend -> sprintf "labelend%i:" ed     )
+                Jnz(sprintf"labelstart%i" start)::Label(sprintf"labelend%i" ed)::[]
+            |Wend -> Label(sprintf "labelend%i" ed)::[]
+        )
 let compileComplete = 
     let prev = ref FlagsUnset
     List.collect
@@ -186,7 +185,7 @@ let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+
 let header = System.IO.File.ReadAllText("header.txt")
 let inline dump arr= Array.map (fun t -> eprintfn "%A   " t;t) arr
 printfn "%s" header
-program |> tokenize |> optimize |> dump |> fixwhiles |> Blockify |> compileComplete |> List.iter (fun t -> printfn "%s" t)
+program |> tokenize |> optimize |> dump |> fixwhiles |> Blockify |> compileComplete |> List.iter (fun t -> printfn "%s" t.ASM)
 let footer = "xor rax,rax ;return 0
 	leave
     ret"
