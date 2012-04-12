@@ -18,12 +18,12 @@ module Main
 //I suspect I now need an asm level optimiser
 type Register =
     |Rax |Rbx |Vd
-    with member x.ASM = match x with |Rax -> "rax" |Rbx -> "rbx" |Vd -> "vd"
+    with member x.ASM = match x with |Rax -> "%rax" |Rbx -> "%rbx" |Vd -> "%rdi"
 type Location = 
     |Reg of Register //the value in a register
     |Memloc of Register //the value in [register]
     |Memoffset of Register * int
-    with member x.ASM = match x with |Reg(r) -> r.ASM |Memloc(r) -> sprintf "[%s]" (r.ASM) |Memoffset(r,i) -> sprintf "[%s%+i]" (r.ASM) i
+    with member x.ASM = match x with |Reg(r) -> r.ASM |Memloc(r) -> sprintf "(%s)" (r.ASM) |Memoffset(r,i) -> if i <> 0 then sprintf "%+i(%s)" i (r.ASM) else sprintf "(%s)" (r.ASM)
 type Value = 
     |Loc of Location
     |I of int
@@ -43,19 +43,19 @@ type Instruction =
     |Shl of Register * int
     member x.ASM =
         match x with
-        |Push(r) -> sprintf "push QWORD %s" (r.ASM)
-        |Mov(a,b) -> sprintf "mov QWORD %s,%s" (a.ASM) (b.ASM)
-        |Pop(r) -> sprintf "pop QWORD %s" (r.ASM)
-        |And(r) -> sprintf "and QWORD %s,%s" (r.ASM) (r.ASM)
-        |Jz(s) -> sprintf "jz %s" s
-        |Jnz(s) -> sprintf "jnz %s" s
-        |Inc(l) -> sprintf "inc QWORD %s" (l.ASM)
-        |Dec(l) -> sprintf "dec QWORD %s" (l.ASM)
-        |Add(l,v) -> sprintf "add QWORD %s,%s" (l.ASM) (v.ASM)
-        |Sub(l,v) -> sprintf "sub QWORD %s,%s" (l.ASM) (v.ASM)
-        |Call(s) -> sprintf "call %s" s
+        |Push(r) ->  sprintf "    pushq %s" (r.ASM)
+        |Mov(a,b) -> sprintf "    movq  %s,%s" (b.ASM) (a.ASM)
+        |Pop(r) ->   sprintf "    popq  %s" (r.ASM)
+        |And(r) ->   sprintf "    andq  %s,%s" (r.ASM) (r.ASM)
+        |Jz(s) ->    sprintf "    jz %s" s
+        |Jnz(s) ->   sprintf "    jnz %s" s
+        |Inc(l) ->   sprintf "    incq  %s" (l.ASM)
+        |Dec(l) ->   sprintf "    decq  %s" (l.ASM)
+        |Add(l,v) -> sprintf "    addq  %s,%s" (v.ASM) (l.ASM)
+        |Sub(l,v) -> sprintf "    subq  %s,%s" (v.ASM) (l.ASM)
+        |Call(s) ->  sprintf "    call %s" s
         |Label(s) -> sprintf "%s:" s
-        |Shl(r,c) -> sprintf "shl %s, %i" (r.ASM) c
+        |Shl(r,c) -> sprintf "    shl %i, %s" c (r.ASM) 
 open Initial
 //the strings below make the code that uses them a bit ugly
 let outstr = Push(Rbx)::Mov(Reg(Vd),Loc(Memloc(Rbx)))::Call("putchar")::Pop(Rbx)::[] 
@@ -164,24 +164,35 @@ let compileComplete =
                 |Whileend(_) -> prev := Wend
                 | _ -> prev := FlagsSet
                 r
-                    )
-//specially optimised sequences
-//[-] mem[p] = 0 //(O(N)*O(dec) -> O(1))
-//[>+<-] -> mem[p+1] += mem[p] ; mem[p] = 0 //(O(N)*O(dec) -> O(add))
+            )
+let rec asmoptimize instrucs =
+(*Next optimize sequence
+    mov QWORD [rbx],0
+    mov QWORD rax,[rbx] //this mov + and + jnz aren't required
+    and QWORD rax,rax
+    jnz labelstart70 //this jump is never taken
 
-//new ideas for things to optimise
-//[ some combination of <,>,+,- ] where N(>) = N(<) - this is doable - there are 6 more loops that can be eliminated this way.  Will also get previous already done optimisations for free
-//Ideas for how to do this
-//      These sequences can always be modified to end with a '-'. (otherwise the loop will never end as BrainF_ck doesn't know about overflow
-//      Once this is done run through the loop once in an interpreter.
-//      Find which memory values were modified + by how much
-//      Then simply convert loop to add / sub last
-//should work
-let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 283 lines (including header) (for reference there are 271 brinf*ck instructions
+This also seems bad
+    add QWORD rbx,8 //this bit here is also a bit funny
+    mov QWORD rax,[rbx]
+    add QWORD [rbx-8],rax
+    mov QWORD [rbx],0 //mov 0 - replace with mov 1
+    inc QWORD [rbx]   //then inc
+    add QWORD rbx,40
+    mov QWORD rax,[rbx]
+    and QWORD rax,rax
+    jnz labelstart18
+*)
+    match instrucs with
+    |Inc(Memoffset(Rbx, q))::Add(Reg(Rbx),I r)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::t when q=r-> 
+        Add(Reg(Rbx),I q)::Inc(Memloc(Rbx))::(asmoptimize t)
+    |h::t -> h::(asmoptimize t)
+    |[] -> []
+let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 252 lines (including header) (for reference there are 271 brinf*ck instructions
 let header = System.IO.File.ReadAllText("header.txt")
 let inline dump arr= Array.map (fun t -> eprintfn "%A   " t;t) arr
 printfn "%s" header
-program |> tokenize |> optimize |> dump |> fixwhiles |> Blockify |> compileComplete |> List.iter (fun t -> printfn "%s" t.ASM)
+program |> tokenize |> optimize |> fixwhiles |> Blockify |> compileComplete |> asmoptimize  |> List.iter (fun t -> printfn "%s" t.ASM)
 let footer = "xor rax,rax ;return 0
 	leave
     ret"

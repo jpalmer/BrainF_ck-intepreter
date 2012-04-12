@@ -1,22 +1,10 @@
-extern malloc
-extern putchar
-%ifdef WIN64
-	%define vd rcx
-    %define main WinMain 
-%elifdef LIN64
-    %define vd rdi
-%endif
-global main
-segment .text
+.text
+.globl main
 main:
-	push   rbp
-   	mov    rbp,rsp
-%ifdef WIN64 
-   	sub    rsp,0x20
-%elifdef LIN64
-    sub rsp,0x10
-%endif
-	mov vd,  0x5000000
+	pushq   %rbp
+   	movq   %rsp, %rbp
+    subq %rsp,0x10
+	movq 0x5000000,%rdi
 	call malloc	
-    mov rbx, rax
-	mov vd, [rbx]
+    movq %rax,%rbx
+	movq (rbx),%rdi
