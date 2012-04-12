@@ -3,8 +3,8 @@
 main:
 	pushq   %rbp
    	movq   %rsp, %rbp
-    subq %rsp,0x10
-	movq 0x5000000,%rdi
+    subq $10,%rsp
+	movq $500000000,%rdi
 	call malloc	
     movq %rax,%rbx
-	movq (rbx),%rdi
+	movq (%rbx),%rdi

@@ -23,11 +23,11 @@ type Location =
     |Reg of Register //the value in a register
     |Memloc of Register //the value in [register]
     |Memoffset of Register * int
-    with member x.ASM = match x with |Reg(r) -> r.ASM |Memloc(r) -> sprintf "(%s)" (r.ASM) |Memoffset(r,i) -> if i <> 0 then sprintf "%+i(%s)" i (r.ASM) else sprintf "(%s)" (r.ASM)
+    with member x.ASM = match x with |Reg(r) -> r.ASM |Memloc(r) -> sprintf "(%s)" (r.ASM) |Memoffset(r,i) -> if i <> 0 then sprintf "%i(%s)" i (r.ASM) else sprintf "(%s)" (r.ASM)
 type Value = 
     |Loc of Location
     |I of int
-    with member x.ASM = match x with |Loc(l) -> l.ASM |I(i) -> sprintf "%i" i
+    with member x.ASM = match x with |Loc(l) -> l.ASM |I(i) -> sprintf "$%i" i
 type Instruction = 
     |Push of Register
     |Mov of Location * Value
@@ -55,7 +55,7 @@ type Instruction =
         |Sub(l,v) -> sprintf "    subq  %s,%s" (v.ASM) (l.ASM)
         |Call(s) ->  sprintf "    call %s" s
         |Label(s) -> sprintf "%s:" s
-        |Shl(r,c) -> sprintf "    shl %i, %s" c (r.ASM) 
+        |Shl(r,c) -> sprintf "    shl $%i, %s" c (r.ASM) 
 open Initial
 //the strings below make the code that uses them a bit ugly
 let outstr = Push(Rbx)::Mov(Reg(Vd),Loc(Memloc(Rbx)))::Call("putchar")::Pop(Rbx)::[] 
@@ -193,7 +193,7 @@ let header = System.IO.File.ReadAllText("header.txt")
 let inline dump arr= Array.map (fun t -> eprintfn "%A   " t;t) arr
 printfn "%s" header
 program |> tokenize |> optimize |> fixwhiles |> Blockify |> compileComplete |> asmoptimize  |> List.iter (fun t -> printfn "%s" t.ASM)
-let footer = "xor rax,rax ;return 0
+let footer = "xor %rax,%rax 
 	leave
     ret"
 printfn "%s" footer

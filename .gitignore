@@ -10,3 +10,4 @@
 makefile~
 a.out
 *.mdb
+callgrind*
