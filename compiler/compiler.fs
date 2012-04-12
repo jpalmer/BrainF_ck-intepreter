@@ -1,24 +1,11 @@
 module Main
 //some comments on the generated asm
 //mov doesn't effect the flags register.  Canonical way of getting flags is to use and rax,rax
-//An idea for the future - there are some palces where we get
 
-//inc [rbx+offset]
-//add rbx,offset
-//mov rax,[rbx]
-//and rax,rax
-//jz .....
-
-//this could be faster - avoid a mov (may be slower due to dependencies but I doubt it)if instead it was 
-//add rbx,offset
-//inc[rbx]
-//jz
-
-//there is also some brain dead asm before my optimised blocks
-//I suspect I now need an asm level optimiser
+//r9 is used as a 0 register
 type Register =
-    |Rax |Rbx |Vd
-    with member x.ASM = match x with |Rax -> "%rax" |Rbx -> "%rbx" |Vd -> "%rdi"
+    |Rax |Rbx |Vd |Rzx
+    with member x.ASM = match x with |Rax -> "%rax" |Rbx -> "%rbx" |Vd -> "%rdi" |Rzx -> "%r9"
 type Location = 
     |Reg of Register //the value in a register
     |Memloc of Register //the value in [register]
@@ -32,7 +19,7 @@ type Instruction =
     |Push of Register
     |Mov of Location * Value
     |Pop of Register
-    |And of Register
+    |And of Register |Xor of Register
     |Jz of string |Jnz of string
     |Inc of Location
     |Dec of Location
@@ -43,22 +30,24 @@ type Instruction =
     |Shl of Register * int
     member x.ASM =
         match x with
-        |Push(r) ->  sprintf "    pushq %s" (r.ASM)
-        |Mov(a,b) -> sprintf "    movq  %s,%s" (b.ASM) (a.ASM)
-        |Pop(r) ->   sprintf "    popq  %s" (r.ASM)
-        |And(r) ->   sprintf "    andq  %s,%s" (r.ASM) (r.ASM)
-        |Jz(s) ->    sprintf "    jz %s" s
-        |Jnz(s) ->   sprintf "    jnz %s" s
-        |Inc(l) ->   sprintf "    incq  %s" (l.ASM)
-        |Dec(l) ->   sprintf "    decq  %s" (l.ASM)
-        |Add(l,v) -> sprintf "    addq  %s,%s" (v.ASM) (l.ASM)
-        |Sub(l,v) -> sprintf "    subq  %s,%s" (v.ASM) (l.ASM)
-        |Call(s) ->  sprintf "    call %s" s
-        |Label(s) -> sprintf "%s:" s
-        |Shl(r,c) -> sprintf "    shl $%i, %s" c (r.ASM) 
+        |Push(r) ->     sprintf "    pushq %s" (r.ASM)
+        |Mov(a,I(0)) -> sprintf "    movq  %%r9,%s" (a.ASM) //I have a 0 register - special case
+        |Mov(a,b) ->    sprintf "    movq  %s,%s" (b.ASM) (a.ASM)
+        |Pop(r) ->      sprintf "    popq  %s" (r.ASM)
+        |And(r) ->      sprintf "    andq  %s,%s" (r.ASM) (r.ASM)
+        |Jz(s) ->       sprintf "    jz %s" s
+        |Jnz(s) ->      sprintf "    jnz %s" s
+        |Inc(l) ->      sprintf "    incq  %s" (l.ASM)
+        |Dec(l) ->      sprintf "    decq  %s" (l.ASM)
+        |Add(l,v) ->    sprintf "    addq  %s,%s" (v.ASM) (l.ASM)
+        |Sub(l,v) ->    sprintf "    subq  %s,%s" (v.ASM) (l.ASM)
+        |Call(s) ->     sprintf "    call %s" s
+        |Label(s) ->    sprintf "%s:" s
+        |Shl(r,c) ->    sprintf "    shl $%i, %s" c (r.ASM) 
+        |Xor(r) ->      sprintf "    xor %s,%s" (r.ASM) (r.ASM)
 open Initial
 //the strings below make the code that uses them a bit ugly
-let outstr = Push(Rbx)::Mov(Reg(Vd),Loc(Memloc(Rbx)))::Call("putchar")::Pop(Rbx)::[] 
+let outstr = Push(Rbx)::Mov(Reg(Vd),Loc(Memloc(Rbx)))::Call("putchar")::Pop(Rbx)::Xor(Rzx)::[] 
     //unfortunately the compiler barfs on externally defined printf format strings
 let ws i j= 
     Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::Jz(sprintf "labelend%i" i)::Label(sprintf "labelstart%i" j)::[]
@@ -167,25 +156,46 @@ let compileComplete =
             )
 let rec asmoptimize instrucs =
 (*Next optimize sequence
-    mov QWORD [rbx],0
-    mov QWORD rax,[rbx] //this mov + and + jnz aren't required
-    and QWORD rax,rax
-    jnz labelstart70 //this jump is never taken
+labelstart18:
+    movq %r9,(%rbx)
+    addq  $8,%rbx
+    movq  (%rbx),%rax
+    addq  %rax,-8(%rbx)
+    addq  %rax,-16(%rbx)
+    movq %r9,(%rbx)
+    subq  $8,%rbx
+    movq  (%rbx),%rax
+    addq  %rax,8(%rbx)
+    movq %r9,(%rbx)
+    subq  $8,%rbx
+    movq  (%rbx),%rax
+    andq  %rax,%rax
+    jz labelend89
 
-This also seems bad
-    add QWORD rbx,8 //this bit here is also a bit funny
-    mov QWORD rax,[rbx]
-    add QWORD [rbx-8],rax
-    mov QWORD [rbx],0 //mov 0 - replace with mov 1
-    inc QWORD [rbx]   //then inc
-    add QWORD rbx,40
-    mov QWORD rax,[rbx]
-    and QWORD rax,rax
+labelend89:
+    addq  $8,%rbx
+    movq  (%rbx),%rax
+    addq  %rax,-8(%rbx)
+    movq  $1,(%rbx)
+    addq  $40,%rbx
+    movq  (%rbx),%rax
+    andq  %rax,%rax
     jnz labelstart18
+labelend94:
+labelstart96:
+    subq  $40,%rbx
+    movq  (%rbx),%rax
+    andq  %rax,%rax
+    jnz labelstart96
+labelend98:
+
 *)
     match instrucs with
     |Inc(Memoffset(Rbx, q))::Add(Reg(Rbx),I r)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::t when q=r-> 
         Add(Reg(Rbx),I q)::Inc(Memloc(Rbx))::(asmoptimize t)
+    |Mov(Memloc(Rbx),I(0))::Inc(Memloc(Rbx))::t 
+        |Mov(Memloc(Rbx),I(0))::Inc(Memoffset(Rbx,0))::t ->
+            Mov(Memloc(Rbx),I(1))::(asmoptimize t)
     |h::t -> h::(asmoptimize t)
     |[] -> []
 let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 252 lines (including header) (for reference there are 271 brinf*ck instructions

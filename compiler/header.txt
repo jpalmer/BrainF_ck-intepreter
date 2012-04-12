@@ -8,3 +8,4 @@ main:
 	call malloc	
     movq %rax,%rbx
 	movq (%rbx),%rdi
+    xor %r9,%r9
