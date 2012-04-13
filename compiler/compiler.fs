@@ -24,7 +24,7 @@ type Instruction =
     |Mov of Location * Value //dest,source
     |Pop of Register
     |And of Register |Xor of Register
-    |Jz of string |Jnz of string
+    |Jz of string |Jnz of string |Jg of string |Jmp of string
     |Inc of Location
     |Dec of Location
     |Add of Location * Value
@@ -40,6 +40,8 @@ type Instruction =
         |Pop(r) ->      sprintf "    popq  %s" (r.ASM)
         |And(r) ->      sprintf "    andq  %s,%s" (r.ASM) (r.ASM)
         |Jz(s) ->       sprintf "    jz %s" s
+        |Jg(s) ->       sprintf "    jg %s" s
+        |Jmp(s) ->      sprintf "    jmp %s" s
         |Jnz(s) ->      sprintf "    jnz %s" s
         |Inc(l) ->      sprintf "    incq  %s" (l.ASM)
         |Dec(l) ->      sprintf "    decq  %s" (l.ASM)
@@ -159,52 +161,32 @@ let compileComplete =
                 r
             )
 let rec asmoptimize instrucs =
-(*Next optimize sequence
-//good potential to optimise here - will require pen and paper though
-labelstart18:
-    movq %r9,(%rbx) //put 0 into (irbx) - this may be unnecersarry see add instruction later which could become mov
-    addq  $8,%rbx //get next memory cell this sub/add pair may be removed by doing offset fiddling
-    movq  (%rbx),%rax //store irbx+8
-    addq  %rax,-8(%rbx) //add irbx+8 to irbx //this can be removed
-    addq  %rax,-16(%rbx) //store to irbx-8 //this is the jump variable - can we store it to optimise the jump
-    movq %r9,(%rbx)     //irbx+8 <- 0 //this might be removed as well as we add in next add instruction
-    subq  $8,%rbx //this sub matches with earlier add
-    movq  (%rbx),%rax //rax <- irbx
-    addq  %rax,8(%rbx)//irbx+8 <- irbx
-    movq %r9,(%rbx) //irbx <- 0
-    subq  $8,%rbx
-    movq  (%rbx),%rax
-    andq  %rax,%rax //jump based on irbx-8
-    jz labelend89
-
-
-labelend89:
-    addq  $8,%rbx
-    movq  (%rbx),%rax
-    addq  %rax,-8(%rbx) //add the value which was initially in rbx to rbx-8
-    movq  $1,(%rbx) //and put 1 where it was before
-    addq  $40,%rbx //jump some bytes
-    movq  (%rbx),%rax //get the value
-    andq  %rax,%rax //check
-    jnz labelstart18 //possibly jump back
-labelend94:
-
-labelstart96: //not much optimise chance here
-    subq  $40,%rbx 
-    movq  (%rbx),%rax
-    andq  %rax,%rax
-    jnz labelstart96
-labelend98:
-
-*)
     match instrucs with
     |Inc(Memoffset(Rbx, q))::Add(Reg(Rbx),I r)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::t when q=r-> 
         Add(Reg(Rbx),I q)::Inc(Memloc(Rbx))::(asmoptimize t)
     |Mov(Memloc(Rbx),I(0))::Inc(Memloc(Rbx))::t ->
         Mov(Memloc(Rbx),I(1))::(asmoptimize t)
     |Mov(Memloc(Rbx),I(0))::Add(Reg(Rbx),I 8)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::Add(Memoffset(Rbx,-8),Loc(Reg(Rax)))::Add(Memoffset(Rbx,-16),Loc(Reg(Rax)))::Mov(Memloc(Rbx),I 0)::Sub(Reg(Rbx),I 8)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::Add(Memoffset(Rbx,8),Loc(Reg(Rax)))::Mov(Memloc(Rbx),I 0)::Sub(Reg(Rbx),I 8)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::t ->
-        
         Mov(Reg(Rax),Loc(Memoffset(Rbx,8)))::Mov(Memloc(Rbx),I 0)::Sub(Reg(Rbx),I 8)::Add(Memloc(Rbx),Loc(Reg(Rax)))::(asmoptimize t)
+    |Label("labelstart25")::Inc(Memoffset(Rbx,8))::Dec(Memloc(Rbx))::Jz(endlable)::t ->
+        let rec findend l = 
+            match l with
+            |Label(_)::Inc(Memoffset(Rbx,8))::Dec(Memloc(Rbx))::Jz(_)::q -> findend q
+            |newl -> newl
+        //new instructions
+        Mov(Reg(Rax),Loc(Memloc(Rbx)))::Sub(Reg(Rax),I 9)::Jg("morethan10")::Mov(Reg(Rax),Loc(Memloc(Rbx)))::Add(Memoffset(Rbx,8),Loc(Reg(Rax)))::Mov(Memloc(Rbx),I 0)::Jmp("labelend80")::Label("morethan10")::Add(Memoffset(Rbx,8),I 9)::Sub(Memloc(Rbx),I 9)::(asmoptimize(findend t))
+    (*labelstart25: ;this is new
+    movq  (%rbx),%rax
+    subq  $9,%rax
+    jg   morethan10
+    movq (%rbx),%rax
+    addq %rax,8(%rbx)
+    movq $0, (%rbx)
+    jmp labelend80
+morethan10:
+    addq $9,8(%rbx)
+    subq $9,(%rbx) ;end of new
+*)
     |h::t -> h::(asmoptimize t)
     |[] -> []
 let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 252 lines (including header) (for reference there are 271 brinf*ck instructions
