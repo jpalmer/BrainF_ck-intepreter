@@ -203,9 +203,8 @@ labelend98:
     |Mov(Memloc(Rbx),I(0))::Inc(Memloc(Rbx))::t ->
         Mov(Memloc(Rbx),I(1))::(asmoptimize t)
     |Mov(Memloc(Rbx),I(0))::Add(Reg(Rbx),I 8)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::Add(Memoffset(Rbx,-8),Loc(Reg(Rax)))::Add(Memoffset(Rbx,-16),Loc(Reg(Rax)))::Mov(Memloc(Rbx),I 0)::Sub(Reg(Rbx),I 8)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::Add(Memoffset(Rbx,8),Loc(Reg(Rax)))::Mov(Memloc(Rbx),I 0)::Sub(Reg(Rbx),I 8)::Mov(Reg(Rax),Loc(Memloc(Rbx)))::And(Rax)::t ->
-        eprintfn "q"
-//        Mov(Reg(Rten),Loc(Memoffset(Rbx,8)))::Mov(Reg(Releven),Loc(Memloc(Rbx)))::Mov(Reg(Rbx),I 0)::Sub(Reg(Rbx),I 8)::Mov(Memoffset(Rbx,16),Loc(Reg(Releven)))::Add(Memloc(Rbx),Loc(Reg(Rten)))::(asmoptimize t)
-        Mov(Reg(Rax),Loc(Memoffset(Rbx,8)))::Mov(Memloc(Rbx),I 0)::Sub(Reg(Rbx),I 8)::Add(Memloc(Rbx),Loc(Reg(Rax)))::And(Rax)::(asmoptimize t)
+        
+        Mov(Reg(Rax),Loc(Memoffset(Rbx,8)))::Mov(Memloc(Rbx),I 0)::Sub(Reg(Rbx),I 8)::Add(Memloc(Rbx),Loc(Reg(Rax)))::(asmoptimize t)
     |h::t -> h::(asmoptimize t)
     |[] -> []
 let program = ">++++++++++>>>+>+[>>>+[-[<<<<<[+<<<<<]>>[[-]>[<<+>+>-]<[>+<-]<[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>+<-[>[-]>>>>+>+<<<<<<-[>+<-]]]]]]]]]]]>[<+>-]+>>>>>]<<<<<[<<<<<]>>>>>>>[>>>>>]++[-<<<<<]>>>>>>-]+>>>>>]<[>++<-]<<<<[<[>+<-]<<<<]>>[->[-]++++++[<++++++++>-]>>>>]<<<<<[<[>+>+<<-]>.<<<<<]>.>>>>]" //currently at 252 lines (including header) (for reference there are 271 brinf*ck instructions
